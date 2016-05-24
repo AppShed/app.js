@@ -8,9 +8,9 @@ JavaScript objects to handle app customisation and modification of items within 
   - Dyncamically create items using code
 
 ## Example
-Here's a small example that uses `app.js` to create a simple Picture Puzzle game:
+Here's a small example that uses `app.js` to create a simple Picture Puzzle game. Download the ZIP file and follow the Quick Start Guide.
 
-![alt text](https://s3-eu-west-1.amazonaws.com/staticmedia.appshed.com/github/dogpuzzleapppng.png	 "Logo Title Text 1")
+https://s3-eu-west-1.amazonaws.com/staticmedia.appshed.com/files/picture-puzzle-quick-start-guidezip.zip	
 
 ### See it in action:
   - On a phone http://apps.appshed.com/787693/
