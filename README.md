@@ -61,8 +61,11 @@ This is a top-level class representing an Item. In AppShed, items are all the 't
 * `isLeft(otherId)` returns true this item is left of the `otherId` Item
 * `isRight(otherId)` returns true this item is right of the `otherId` Item
 * `place(x,y)` place the item at a certain absolute `x,y` position
+* `setBackgroundColor()` set the background color of this Item to `color`
+* `setHTML()` = set the value of Html to `str`
 * `setImage(src)` set the image URL to `src`
 * `setText(str)` set the value of Text to `str` 
+* `setTextColor()` set the color of Text to `color`
 * `setSubTitle()` set the value of Sub Title to `str`
 * `setTitle()` set the value of Title to `str`
 * `swap(otherId)` swaps this icon with the `otherId` Item

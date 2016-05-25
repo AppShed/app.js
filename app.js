@@ -2,8 +2,10 @@
 // This code must be copied into the Custom JavaScript field
 // Open any app with AppShed app-builder, go to Settings -> Advanced tab and find Custom JavaScript
 // Created by T Stauch
-// v1, 25-4-2016
+// v1.1, 25-5-2016
 // appshed.com
+//
+// v1.1 Added some methods to set colors for Item Text and Background
 
 
 	window.app = app;
@@ -90,6 +92,7 @@
 
 
 	app.getScreen = function(id){
+		// returns the `Screen` object for `id`
 
 		try{
 
@@ -189,6 +192,7 @@
 
 
 		this.getImage = function(){
+			// returns the URL of the image for this item
 			return app.findClass(this.element,"image").src
 		}
 
@@ -246,23 +250,56 @@
 			return this
 		}
 
+		this.setBackgroundColor = function(color){
+			//set the background color of this Item to `color`
+			try{
+				this.element.style.backgroundColor = color
+			}catch(er){app.handleError(er,"Item.setBackgroundColor()")}
+			return this;
+		}
+
+		this.setHTML = function(str){
+			//set the value of Html to `str`
+			try{
+				app.findClass(this.element,"html").innerHTML = str
+			}catch(er){app.handleError(er,"Item.setHTML()")}
+			return this;
+		}
+
 		this.setImage = function(src){
+			//set the image URL to `src`
 			app.findClass(this.element,"image").src = src
 			return this
 		}
 
 		this.setText = function(str){
-			app.findClass(this.element,"html").innerHTML = str
+			//set the value of Text to `str`
+			try{
+				app.findClass(this.element,"text").innerHTML = str
+			}catch(er){app.handleError(er,"Item.setText()")}
 			return this;
 		}
 
+		this.setTextColor = function(color){
+			//set the color of Text to `color`
+			try{
+				app.findClass(this.element,"text").style.color = color
+			}catch(er){app.handleError(er,"Item.setTextColor()")}
+			return this;
+		}
+
+
 		this.setSubTitle = function(str){
+			//set the value of Sub Title to `str`
 			app.findClass(this.element,"text").innerHTML = str
 			return this;
 		}
 
 		this.setTitle = function(str){
-			app.findClass(this.element,"title").innerHTML = str
+			//set the value of Title to `str`
+			try{
+				app.findClass(this.element,"title").innerHTML = str
+			}catch(er){app.handleError(er,"Item.setTitle()")}
 			return this;
 		}
 
@@ -287,6 +324,7 @@
 
 
 		this.toString = function(){
+			//returns a string representation of the object
 			return "AppShed Object: Item ("+this.id+")"
 		}
 
