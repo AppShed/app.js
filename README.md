@@ -90,7 +90,7 @@ This is a top-level class representing a Screen. In AppShed there are four main 
 
 
 ## Versions
-1.0 - Updated April 2016
-v1.1 (26-5-2016) Added some methods to set colors for Item Text and Background
-v1.1.1 (02-06-2016) error handling, setInterval()
+* 1.0 - Updated April 2016
+ * v1.1 (26-5-2016) Added some methods to set colors for Item Text and Background
+ * v1.1.1 (02-06-2016) error handling, setInterval()
 
