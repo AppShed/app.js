@@ -2,11 +2,11 @@
 // This code must be copied into the Custom JavaScript field
 // Open any app with AppShed app-builder, go to Settings -> Advanced tab and find Custom JavaScript
 // Created by T Stauch
-// v1.1, 25-5-2016
+// v1 (25-5-2016)
 // appshed.com
 //
-// v1.1 Added some methods to set colors for Item Text and Background
-// v1.1.1 error handling, setInterval()
+// v1.1 (26-5-2016) Added some methods to set colors for Item Text and Background
+// v1.1.1 (02-06-2016) error handling, setInterval()
 
 
 
