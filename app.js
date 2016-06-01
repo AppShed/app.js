@@ -6,16 +6,41 @@
 // appshed.com
 //
 // v1.1 Added some methods to set colors for Item Text and Background
+// v1.1.1 error handling, setInterval()
+
 
 
 	window.app = app;
 
+
+
+
+
+
 	// APP Properties
 	app.currentScreen = null;
+	app.intervals = []; // an array of all the Intervals started for the app using app.setInterval()
+
+
+
+
+
+
+
+
 
 
 
 	// APP Methods
+
+
+
+	app.addInterval = function(id){
+		// Adds an interval handler to the array of intervals, returns the index of this handler
+		return (app.intervals.push(id)-1)
+	}
+
+
 
 	app.findClass = function(element, className){
         var foundElement = null, found;
@@ -122,7 +147,22 @@
 	}
 
 
+	app.setInterval = function(func,delay,timeout){
+		// repeatedly calls a function with a fixed delay
+		// optionally stops after timeout
 
+		try{
+
+
+			var index = app.addInterval(setInterval(func,delay))
+			if(timeout)
+				setTimeout("clearInterval(app.intervals["+index+"])",timeout)
+
+		}catch(er){
+			app.handleError(er,"app.setInterval()")
+		}
+
+	}
 
 
 
@@ -284,7 +324,15 @@
 			//set the color of Text to `color`
 			try{
 				app.findClass(this.element,"text").style.color = color
-			}catch(er){app.handleError(er,"Item.setTextColor()")}
+			}catch(er){
+				// the text might be in a 'html' class
+				try{
+					app.findClass(this.element,"html").style.color = color
+				}catch(er2){
+					app.handleError(er+", "+er2,"Item.setTextColor()")
+				}
+			}
+
 			return this;
 		}
 
