@@ -39,7 +39,7 @@ To use  `app.js` in your AppShed app:
   * `type` (optional, default `thumb`) determines which type of item is returned
   * `data` (optional) a JSON object containing data for the item
 * `getScreen(id)` returns the `Screen` object for `id`. `id` is optional
-* `setInterval(func,delay,timeout)` repeatedly calls `func` with a fixed `delay`, optionally stops after `timeout`
+* `setInterval(func,delay[,timeout])` repeatedly calls `func` with a fixed `delay`, optionally stops after `timeout`
 
 ### Supporting Methods (app Class)
 These additional supporting methods are also available in the `app` object
