@@ -31,8 +31,10 @@ To use  `app.js` in your AppShed app:
 
 
 
-## Methods (app Class)
+## app (Object)
+The app Object is instantitated when the app loads. It is the starting point for all interactions with the app. It contains methods to instantiate objects for Screens, Items, Devices etc.
 
+### app Methods
 * `addDevice(props)` Adds an IoT Device (such as ESP8266, RaspberryPi or Arduino) to this app. `props` is a JSON object containing the properties of the device
 * `appendToVariable(variable,value[,atFront])` Appends `value` to `variable`. Optionally if `atFront` is `true` adds the `value` to the front of the `variable`
 * `digitalWrite(id,pin,value)` For the device `id` the pin number `pin` is set to `value`
@@ -44,10 +46,10 @@ To use  `app.js` in your AppShed app:
 * `getRandomColor([numOfSteps, step])` Returns a random color in the format `rgb(x,y,z)`. 
   * Optional `numOfSteps` determines how many steps to separate the color spectrum into.
   * Optional `step` specifies the specific step to return. Default is a random step.
-* `getScreen(id)` returns the `Screen` object for `id`. `id` is optional
+* `getScreen([id])` returns the `Screen` object for `id`. `id` is optional. If `id` is ommitted the current screen is returned.
 * `setInterval(func,delay[,timeout])` repeatedly calls `func` with a fixed `delay`, optionally stops after `timeout`
 
-### Supporting Methods (app Class)
+### app Supporting Methods 
 These additional supporting methods are also available in the `app` object
 * `addARESTScripts()` Adds the script tags required by aREST to the `<head>`
 * `addInterval(id)` Adds an interval handler `id` to the array of intervals, returns the array index of this handler
@@ -61,6 +63,14 @@ These additional supporting methods are also available in the `app` object
 ## Item (Class)
 This is a top-level class representing an Item. In AppShed, items are all the 'things' you can add to your screens, e.g. text, image, image-link etc.
 
+
+### Item Properties
+* `id` The `id` of the Item. This is required to instantiate the object.
+* `element` The `DOMElement` for this item
+* `domId` The `DOM Id` for this item (typically item+id)
+
+
+### Item Methods
 * `getIconAbove()` returns the icon in the row above this icon
 * `getIconBelow` returns the icon in the row above this icon
 * `getIconLeft()` returns the icon on the left of this icon
@@ -72,7 +82,7 @@ This is a top-level class representing an Item. In AppShed, items are all the 't
 * `isRight(otherId)` returns true this item is right of the `otherId` Item
 * `place(x,y)` place the item at a certain absolute `x,y` position
 * `setBackgroundColor()` set the background color of this Item to `color`
-* `setHTML()` = set the value of Html to `str`
+* `setHTML(str)` set the value of Html to `str`
 * `setImage(src)` set the image URL to `src`
 * `setText(str)` set the value of Text to `str` 
 * `setTextColor()` set the color of Text to `color`
@@ -81,12 +91,12 @@ This is a top-level class representing an Item. In AppShed, items are all the 't
 * `swap(otherId)` swaps this icon with the `otherId` Item
 
 
-### Supporting Methods (Item class)
+### Item Supporting Methods 
 * `toString()` returns a string representation of the object 
 
 
 ------
-## Screen (class)
+## Screen (Class)
 This is a top-level class representing a Screen. In AppShed there are four main screen types:
 
 * Standard
@@ -95,6 +105,47 @@ This is a top-level class representing a Screen. In AppShed there are four main 
 * Gallery
 
 
+### Screen Properties
+* `id` The `id` of the Screen. This is required to instantiate the object.
+* `element` The `DOMElement` for this screen
+* `domId` The `DOM Id` for this screen (typically screen+id)
+* `items` A hash of `Item` objects for this screen
+* `icons`  A hash of `Icon` objects for this screen
+
+
+### Screen Methods
+* addIconRows(numRows,data) Adds `numRows` rows of icons. Uses `data` to populate the rows 
+* countColumns() Returns the number of columns (for `Icon` screen types)
+* getBackgroundColor() Returns the `backgroundColor` of this `Screen`
+* getIconAbove(iconId) returns the icon in the row above this icon
+* getIconBelow(iconId) returns the icon in the row below this icon
+* getIconLeft(iconId) returns the icon on the left of this icon
+* getIconRight(iconId) returns the icon on the left of this icon
+* getIconRowHTML(idStart,cols,data) returns the HTML for a row of (cols) Icons
+* getIcons() 
+ * Returns an object of `Items`
+ * The object has rows and columns corresponding to the icons on the screen
+ * Returns `null` if not an `Icons` screen
+* getItems(clearCache) return all the items on this screen as objects
+* getType() Returns the type of `Screen` - one of: `list` | `icon` | `gallery` | `map`
+* setBackgroundColor(color) Sets the `backgroundColor` of this `Screen` to `color`
+* setBackgroundImage(src[,method]) Sets the `backgroundImage` of this `Screen` to `src`. 
+ * Optional `method` determines the layout
+ * One of: `fit` | `fill` | `stretch` | `center` | `tile`
+ * `method` defaults to `fit`
+* setTitle(str) Sets the `Title` of the screen to `str`. Returns the `Screen` object
+
+
+### Screen Supporting Methods
+* addIconRow(rowHTML,index,data)
+ * Adds a row of `Icons` by inserting `rowHTML` into the table
+ * `index` specifies the row where to insert. Defaults to -1 (bottom of the table)
+ * If `rowHTML` is ommitted then the HTML is generated using `data`
+ * `data` contains the values to be used for the Icons. 
+* clearItemsCache() Clears the `items` hash (local cache)
+* getNextId(testId) Returns the next valid (unused) `id`. Used when creating `Items` dynamically.
+* getTable() Returns the HTML `table` element (for `Icon` screen types) 
+* toString() Returns a string represenation of the `Screen`
 
 
 
@@ -102,4 +153,7 @@ This is a top-level class representing a Screen. In AppShed there are four main 
 * 1.0 - Updated April 2016
  * v1.1 (26-5-2016) Added some methods to set colors for Item Text and Background
  * v1.1.1 (02-06-2016) error handling, setInterval()
+ * v1.1.2 (02-06-2016) app.addDevice()
+ * v1.1.3 (10-06-2016) app.getRandomColor(), app.appendToVariable(), screen.setBackgroundColor
+
 
