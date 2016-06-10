@@ -114,38 +114,38 @@ This is a top-level class representing a Screen. In AppShed there are four main 
 
 
 ### Screen Methods
-* addIconRows(numRows,data) Adds `numRows` rows of icons. Uses `data` to populate the rows 
-* countColumns() Returns the number of columns (for `Icon` screen types)
-* getBackgroundColor() Returns the `backgroundColor` of this `Screen`
-* getIconAbove(iconId) returns the icon in the row above this icon
-* getIconBelow(iconId) returns the icon in the row below this icon
-* getIconLeft(iconId) returns the icon on the left of this icon
-* getIconRight(iconId) returns the icon on the left of this icon
-* getIconRowHTML(idStart,cols,data) returns the HTML for a row of (cols) Icons
-* getIcons() 
- * Returns an object of `Items`
- * The object has rows and columns corresponding to the icons on the screen
- * Returns `null` if not an `Icons` screen
-* getItems(clearCache) return all the items on this screen as objects
-* getType() Returns the type of `Screen` - one of: `list` | `icon` | `gallery` | `map`
-* setBackgroundColor(color) Sets the `backgroundColor` of this `Screen` to `color`
-* setBackgroundImage(src[,method]) Sets the `backgroundImage` of this `Screen` to `src`. 
- * Optional `method` determines the layout
- * One of: `fit` | `fill` | `stretch` | `center` | `tile`
- * `method` defaults to `fit`
-* setTitle(str) Sets the `Title` of the screen to `str`. Returns the `Screen` object
+* `addIconRows(numRows,data)` Adds `numRows` rows of icons. Uses `data` to populate the rows 
+* `countColumns()` Returns the number of columns (for `Icon` screen types)
+* `getBackgroundColor()` Returns the `backgroundColor` of this `Screen`
+* `getIconAbove(iconId)` returns the icon in the row above this icon
+* `getIconBelow(iconId)` returns the icon in the row below this icon
+* `getIconLeft(iconId)` returns the icon on the left of this icon
+* `getIconRight(iconId)` returns the icon on the left of this icon
+* `getIconRowHTML(idStart,cols,data)` returns the HTML for a row of (cols) Icons
+* `getIcons()` 
+ * `Returns an object of `Items`
+ * `The object has rows and columns corresponding to the icons on the screen
+ * `Returns `null` if not an `Icons` screen
+* `getItems(clearCache)` return all the items on this screen as objects
+* `getType()` Returns the type of `Screen` - one of: `list` | `icon` | `gallery` | `map`
+* `setBackgroundColor(color)` Sets the `backgroundColor` of this `Screen` to `color`
+* `setBackgroundImage(src[,method])` Sets the `backgroundImage` of this `Screen` to `src`. 
+ * `Optional `method` determines the layout
+ * `One of: `fit` | `fill` | `stretch` | `center` | `tile`
+ * ``method` defaults to `fit`
+* `setTitle(str)` Sets the `Title` of the screen to `str`. Returns the `Screen` object
 
 
 ### Screen Supporting Methods
-* addIconRow(rowHTML,index,data)
- * Adds a row of `Icons` by inserting `rowHTML` into the table
- * `index` specifies the row where to insert. Defaults to -1 (bottom of the table)
- * If `rowHTML` is ommitted then the HTML is generated using `data`
- * `data` contains the values to be used for the Icons. 
-* clearItemsCache() Clears the `items` hash (local cache)
-* getNextId(testId) Returns the next valid (unused) `id`. Used when creating `Items` dynamically.
-* getTable() Returns the HTML `table` element (for `Icon` screen types) 
-* toString() Returns a string represenation of the `Screen`
+* `addIconRow(rowHTML,index,data)`
+ * `Adds a row of `Icons` by inserting `rowHTML` into the table
+ * ``index` specifies the row where to insert. Defaults to -1 (bottom of the table)
+ * `If `rowHTML` is ommitted then the HTML is generated using `data`
+ * ``data` contains the values to be used for the Icons. 
+* `clearItemsCache()` Clears the `items` hash (local cache)
+* `getNextId(testId)` Returns the next valid (unused) `id`. Used when creating `Items` dynamically.
+* `getTable()` Returns the HTML `table` element (for `Icon` screen types) 
+* `toString()` Returns a string represenation of the `Screen`
 
 
 
