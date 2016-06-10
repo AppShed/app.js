@@ -33,18 +33,27 @@ To use  `app.js` in your AppShed app:
 
 ## Methods (app Class)
 
+* `addDevice(props)` Adds an IoT Device (such as ESP8266, RaspberryPi or Arduino) to this app. `props` is a JSON object containing the properties of the device
+* `appendToVariable(variable,value[,atFront])` Appends `value` to `variable`. Optionally if `atFront` is `true` adds the `value` to the front of the `variable`
+* `digitalWrite(id,pin,value)` For the device `id` the pin number `pin` is set to `value`
 * `getItem(id)` returns an `Item` object for `id`
-* `getItemHTML(id,type,data)` returns the default HTML for an item
+* `getItemHTML([id,type,data])` returns the default HTML for an item
   * `id` (optional) will be set as the HTML id
   * `type` (optional, default `thumb`) determines which type of item is returned
   * `data` (optional) a JSON object containing data for the item
+* `getRandomColor([numOfSteps, step])` Returns a random color in the format `rgb(x,y,z)`. 
+  * Optional `numOfSteps` determines how many steps to separate the color spectrum into.
+  * Optional `step` specifies the specific step to return. Default is a random step.
 * `getScreen(id)` returns the `Screen` object for `id`. `id` is optional
 * `setInterval(func,delay[,timeout])` repeatedly calls `func` with a fixed `delay`, optionally stops after `timeout`
 
 ### Supporting Methods (app Class)
 These additional supporting methods are also available in the `app` object
+* `addARESTScripts()` Adds the script tags required by aREST to the `<head>`
 * `addInterval(id)` Adds an interval handler `id` to the array of intervals, returns the array index of this handler
+* `addScript(url)` Adds a `<script>` tag with `src = url` to the `<head>` 
 * `findClass(element, className)` returns the first `HTMLElement` inside `element` that contains the class `className`
+* `getIPs(callback)` Returns an array of actice IP addresses on the same Subdomain. Returns an array of actice IP addresses on the same Subdomain. Optionally calls `callback` when done.
 * `getItemByDomId(domId)` returns an `Item` object for `domId` (where `domId` is the DOM id for the item, e.g. 'item1234')
 * `getItemsElement()`returns the `HTMLElement` that contains all the `Items`. This element is used when adding or removing HTML
 * `handleError(er,msg)` used for debugging to provide notification of an error
