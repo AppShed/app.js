@@ -27,8 +27,8 @@ To use  `app.js` in your AppShed app:
 * You can now call any of the `app` methods as `JavaScript` actions
   * Add an item to your app
   * Change the `Action` to `JavaScript`
-  * use the format `app.method()`, e.g. `app.getItem(123)`
-
+  * use the format `app.method()`, e.g. `app.getScreen()`
+  * This example will set the title of the current screen: `app.getScreen().setTitle("Hello World")`
 
 
 ## app (Object)
