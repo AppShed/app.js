@@ -9,30 +9,45 @@
 	// v1.1.1 (02-06-2016) error handling, setInterval()
 	// v1.1.2 (02-06-2016) app.addDevice()
 	// v1.1.3 (10-06-2016) app.getRandomColor(), app.appendToVariable(), screen.setBackgroundColor
+	// v1.1.4 (20-06-2016) Support for Device LocalIP usage
+	// v1.1.5 (22-06-2016) Enhancements to Device class
+	// v1.1.6 (02-07-2016) 
+
+
+	// TO DO
+	// from V1.1.5 it is not working in Android native app - needs fixing.
+	// Query IOIO boards for setup https://iot-api.appshed.com/api/boards/4195/outputs
+	// Docs https://iot-api.appshed.com/api/doc/
+
+
+
+try{
 
 
 		window.app = app;
 
 
 
-		// INITIALISE
-//		setTimeout(function(){
-//			app.addARESTScripts();
-//		},100)
 
+
+		// APP Settings
+		app._REQUIREARESTSCRIPTS = true;
 
 
 
 		// APP Properties
 		app._appIPAddresses = [];
-		app._arestScriptsAdded = false;
 		app._currentScreen = null;
+		app._defaultDevice = "IOIO";
+		app._handler_arestScriptsInterval = null;
 		app._intervals = []; // an array of all the Intervals started for the app using app.setInterval()
-		app._scripts
-		app.devices = []
-
-
-
+		app._scripts;
+		app._scriptLoaded_jquery = false;
+		app._scriptLoaded_ajaxq = false;
+		app._scriptLoading_ajaxq = false;
+		app._scriptLoading_jquery = false;
+		app._scriptsLoaded_arest = false;
+		app._devices = []
 
 
 
@@ -42,22 +57,61 @@
 		// APP Methods
 
 
+
+
+		app.init = function(){
+
+			if(app._REQUIREARESTSCRIPTS)
+				app.setInterval(app.addARESTScripts(),1000,10000)
+
+
+//				setTimeout(function(){
+//					app.addARESTScripts();
+//				},100)				
+
+
+
+		}
+
+
+
+
 		app.addARESTScripts = function(){
 			// Adds the script tags required by aREST to the `<head>`
+			// This method is called on an `Interval` until all the scripts required by `aREST` have been loaded
+			// Once all the script are loaded, the `Interval` is stopped 
 
-			app.addScript("http://appshed.us/arest/jquery-2.1.4.min.js")
+			// check if all scripts have been loaded
+			if(app._scriptLoaded_jquery && app._scriptLoaded_ajaxq){
+				app._scriptsLoaded_arest = true;
+					
+				return true;
+			}
 
-			setTimeout(function(){
-				app.addScript("http://appshed.us/arest/ajaxq.js")
-			},2000)
+			if(app._scriptLoaded_jquery){
+				if(!app._scriptLoading_ajaxq){
+					app._scriptLoading_ajaxq = true;
+					app.addScript("http://appshed.us/arest/ajaxq.js")
+				}
+			} else if(!app._scriptLoading_jquery){
+				app._scriptLoading_jquery = true;
+				app.addScript("http://appshed.us/arest/jquery-2.1.4.min.js")
+			} 
 
-			setTimeout(function(){
-				$.noConflict()
-			},4000);
+			// test for jQuery and ajaxq
+			try{
 
-			setTimeout(function(){
-				app._arestScriptsAdded = true
-			},4500);
+				if(!app._scriptLoaded_jquery && app._scriptLoading_jquery && jQuery){
+					$.noConflict();
+					app._scriptLoaded_jquery = true;
+				}
+				if(!app._scriptLoaded_ajaxq && app._scriptLoading_ajaxq && jQuery.ajaxq)
+					app._scriptLoaded_ajaxq = true;
+
+			}catch(er){}
+
+
+			setTimeout(function(){app.addARESTScripts()},300);
 
 		}
 
@@ -71,10 +125,11 @@
 
 		  try{
 
-//			var device = new Device(props.ip);
-			var device = new Device("cors.appshed.com/?u=https://cloud.arest.io/"+props.id);
-			device.pinMode(16, "OUTPUT");
-			app.devices.push(device)
+			var device;
+
+			device = new Device(props);
+
+			app._devices[props.id] = device;
 
 			return device;
 
@@ -83,9 +138,6 @@
 		  }
 
 		}
-
-
-
 
 
 
@@ -134,13 +186,17 @@
 
 
 
-		app.digitalWrite = function(id,pin,value){
+		app.digitalWrite = function(idORprops,pin,value){
 			// For the device `id` the pin number `pin` is set to `value`
 
-			var props = {};
-			props.id = id;
+			// If the aREST scripts have not been loaded, load those, and return
+			if(!app._scriptsLoaded_arest)
+				return app.addARESTScripts();
 
-			app.addDevice(props).digitalWrite(pin, value)
+
+			var props = app.idORpropsToObject(idORprops);
+
+			return app.getDevice(props).digitalWrite(pin, value)
 
 		}
 
@@ -150,7 +206,9 @@
 
 
 
-		// alternative code
+
+
+
 		app.findClass = function(element, className) { 
 			// Returns the first `DOM Element` matching 
 			return element.querySelector("." + className) 
@@ -158,8 +216,31 @@
 
 
 
+
+		app.getDevice = function(idORprops){
+
+			var props = app.idORpropsToObject(idORprops)
+			var device = app._devices[props.id]
+
+			if(device){
+				device.updateProperties(props)
+				return device
+			}
+			else 
+				return app.addDevice(props)
+
+		}
+
+
+
+
+
 		app.getIPs = function(callback){
-			// Returns an array of actice IP addresses on the same Subdomain. Optionally calls `callback` when done.
+			// Looks for the Local IP address(es) for the app
+			// Calls `callback(ip_addr)` for each IP Address
+			// Adds all the IP Addresses to `app._appIPAddresses[]`
+
+			app._appIPAddresses = [];
 
 		    var ip_dups = {};
 
@@ -199,10 +280,12 @@
 		        var ip_addr = ip_regex.exec(candidate)[1];
 
 		        //remove duplicates
-		        if(ip_dups[ip_addr] === undefined)
+		        if(ip_dups[ip_addr] === undefined){
 		            app._appIPAddresses.push(ip_addr)
+					app.scanIPSubnet(ip_addr)
+			        if(callback != null) callback(ip_addr);
+		        }
 
-		            //callback(ip_addr);
 
 		        ip_dups[ip_addr] = true;
 		    }
@@ -351,45 +434,66 @@
 
 
 		app.handleError = function(er,msg){
+			// Handles errors. Logs `er` and `msg` to the console.
 
 			var msg = msg || ""
-			alert("ERROR: \n"+msg+" \n"+er)
+			console.log("ERROR: ",er,msg)
 
 		}
 
 
 
-		app.scanIPs = function(props){
+		app.idORpropsToObject = function(idORprops){
+			// Returns an `object` using `idORprops`
+
+			var props = {};
+
+			if (typeof idORprops === "object")
+				props = idORprops;
+			else
+				props.id = idORprops;
+
+			return props;
+		}
+
+
+
+		app.prependToVariable = function(variable,value){
+			// prepends `value` to `variable`
+			return this.appendToVariable(variable,value,true);
+		}
+
+
+
+		app.scanIPSubnet = function(address){
+			// This function is INCOMPLETE
+
+			// Scans the local subnet of `address` looking for devices
+			// This function is INCOMPLETE
+
 
 		  try{
 
 			// local IP should be in [0]
-			if(app._appIPAddresses[0]){
+			if(address){
 
-				var ipParts = String(app._appIPAddresses[0]).split(".")
+				var ipParts = String(address).split(".")
 				var ipPartial = ipParts[0]+"."+ipParts[1]+"."+ipParts[2]+"."
 
 				// go through all IP addresses changing the last number only
-				for(var i=0;i<5;i++){
-
-					var thisURL = 'http://'+ipPartial+i;
+				for(var i=183;i<188;i++){
+					var ipAddress = ipPartial+i
+					var thisURL = 'http://'+ipAddress;
 					var response;
 
-					app.ajaxRequest(thisURL, 'jsonp', 'json', {  "q":"London" }, function(response) {
-					  alert('success'+response);
-
-					}, function(response) {
-					  alert('Failed to get the weather');
-
-					})
-
+					app.getDevice({id:"scanAttempt-"+thisURL,localIP: ipAddress}).getInfo(function(data){console.log("scanIPSubnet",data)})
 
 				}
 			}
 
 			
 		  }catch(er){
-				app.handleError(er,"app.scanIPs()")	
+				app.handleError(er,"app.scanIPSubnet()")	
 		  }
 
 
@@ -401,11 +505,10 @@
 
 			try{
 
-
-				var index = app.addInterval(setInterval(func,delay))
+				var index = app.addInterval(window.setInterval(func,delay))
 				if(timeout)
-					setTimeout(function() { clearInterval(app.intervals[index]);}, timeout)
-
+					setTimeout(function() { clearInterval(app._intervals[index]);}, timeout)
+				return index;
 			}catch(er){
 				app.handleError(er,"app.setInterval()")
 			}
@@ -414,6 +517,55 @@
 
 
 
+		app.setPin = function(pinName,val,id){
+			// Sets the pin called `pinName` to `val`
+			// Optional `id` to use a specific `Device`
+			// If no `id` passed in the default `Device` is used (`IOIO` is the initial default device)
+
+
+app.appendToVariable("log","........... _defaultDevice: "+this._defaultDevice)
+
+			var device = this.getDevice(id?id:this._defaultDevice)
+
+			// For IOIO use built in iot.setPin
+			if(this._defaultDevice == "IOIO"){
+app.appendToVariable("log","........... setPin IOIO "+pinName+" = "+val)
+				try{
+					window.appbuilder.events.iot.setPin(pinName,val)
+				}catch(er){this.handleError(er,"app.setPin() IOIO error")}
+			} else {
+
+				// all other devices... use Device methods
+	app.appendToVariable("log","........... Device: "+device.address);
+				// if not IOIO... presume that the pinName is in the format: nXXX
+				// where 'n' is pinNumber and XXX is the Label/description
+				var pinNumber = parseInt(pinName)
+	console.log("setPin pinNumber",pinNumber)
+	console.log("setPin value",val)
+				if(isNaN(pinNumber)){
+					console.log("Error: app.setPin, pinNumber not valid")						
+				} else {
+
+					// if val is boolean then use digital output, else analog
+					if(val == true || val == "true")
+						device.digitalWrite(pinNumber,1)
+					else if(val == false || val == "false")
+						device.digitalWrite(pinNumber,0)
+					else if(val == 1 || val == 0){ // special case: 1/0 might be digital or analog
+					 	if(device.getPinFormat[pinNumber] == "a")
+					 		device.analogWrite(pinNumber,val)
+					 	else
+					 		device.digitalWrite(pinNumber,val)
+					} else { // everything else presume analog
+						device.analogWrite(pinNumber,val)
+					}
+
+				}
+
+			}
+
+			return device;
+		}
 
 
 
@@ -456,6 +608,12 @@
 			}
 
 
+			this.getBackgroundColor = function(){
+				// Returns the `backgroundColor` of this `Item`
+			
+				return this.element.style.backgroundColor;
+
+			}
 
 
 			this.getIconAbove = function(){
@@ -683,9 +841,11 @@
 			}
 
 
-		    this.addIconRow = function(rowHTML,index,data){
-		    	// adds a row of icons by inserting rowHTML into the table
-		    	// index specifies the row where to insert. defaults to -1 (bottom of the table)
+		    this.addIconRow = function([rowHTML,index,data]){
+		    	// Adds a row of `Icons` by inserting `rowHTML` into the table
+		    	// `index` specifies the row where to insert. Defaults to -1 (bottom of the table)
+		    	// If `rowHTML` is ommitted then the HTML is generated using `data`
+		    	// `data` contains the values to be used for the Icons. 
 
 		    	if(this.getType() == "icon"){
 		    		if(!index)
@@ -705,6 +865,8 @@
 
 		    this.addIconRows = function(numRows,data){
 		    	// adds numRows rows of icons 
+		    	// Uses `data` to populate the rows
+
 		    	if(this.getType() == "icon"){
 
 		    		for(var i=0;i<numRows;i++){
@@ -724,11 +886,12 @@
 
 
 		    this.clearItemsCache = function(){
+		    	// Clears the `items` hash (local cache)
 		    	this.items = {};
 		    }
 
 			this.countColumns = function(){
-
+				// Returns the number of columns (for Icon screen types)
 		    	if(this.getType() == "icon"){
 		    		return this.getTable().rows[0].cells.length
 		    	}
@@ -847,9 +1010,9 @@
 
 
 			this.getIcons = function(){
-				// returns an object of items
-				// the object has rows and columns corresponding to the icons on the screen
-				// returns null if not an icons screen
+				// Returns an object of items
+				// The object has rows and columns corresponding to the icons on the screen
+				// Returns `null` if not an `Icons` screen
 
 				if(this.getType() != "icon")
 					return null;
@@ -908,7 +1071,7 @@
 
 
 			this.getNextId = function(testId){
-
+				// Returns the next valid (unused) `id`. Used when creating `Items` dynamically.
 				try{
 
 					if(!testId)
@@ -940,12 +1103,14 @@
 			}
 
 			this.getTable = function(){
+				// Returns the HTML `table` element (for `Icon` screen types) 
 		    	if(this.getType() == "icon")
 					return this.element.getElementsByTagName("table")[0];
 			}
 
 
 			this.getType = function(){
+				// Returns the type of `Screen` (`list`,`icon`,`gallery`,`map`)
 
 				var classes = this.element.classList
 
@@ -968,6 +1133,7 @@
 
 				var items = app.findClass(this.element,"items")
 			
+				items.style.backgroundImage = 'none';
 				items.style.backgroundColor = color;
 
 				return this
@@ -977,6 +1143,11 @@
 
 
 			this.setBackgroundImage = function(src,method){
+				// Sets the `backgroundImage` of this `Screen` to `src`. 
+				// Optional `method` determines the layout
+				// One of: `fit` | `fill` | `stretch` | `center` | `tile`
+				// `method` defaults to `fit` 
+
 				if(!method)
 					method = 'fit'
 
@@ -1006,6 +1177,9 @@
 
 
 			this.setTitle = function(str){
+				// Sets the `Title` of the screen to `str`.
+				// Returns the `Screen` object
+
 				var header = app.findClass(this.element,"header")
 				app.findClass(header,"title").innerHTML = str
 				return this;
@@ -1014,8 +1188,11 @@
 
 
 			this.toString = function(){
+				// Returns a string represenation of the `Screen`
 				return "AppShed Object: Screen ("+this.id+")"
 			}
+
+
 
 
 
@@ -1062,70 +1239,310 @@
 
 // Device object.
 
-function Device(address) {
-  this.address = address;
+function Device(props) {
+	// Class definition for `Device`
+	// Create a new `Device` object: `var obj = new Device(props)`
+	// Must call `obj.init()` after creating the new `Device`
+	// `props` is a JSON object of properties
 
-  this.pinMode = function(pin, state) {
-    jQuery.ajaxq('queue', {
-      url: 'http://' + this.address + '/mode/' + pin + '/o',
-      crossDomain: true
-    }).done(function(data) {
-      //console.log(data);
-    });
-  };
 
-  this.digitalWrite = function(pin, state) {
-    jQuery.ajaxq('queue', {
-      url: 'http://' + this.address + '/digital/' + pin + '/' + state,
-      crossDomain: true
-    }).done(function(data) {
-      //console.log(data);
-    });
-  };
+	// TODO
+	// * run checks on localIP to make sure the app is on same subdomain, before using it.
+	// * support IOIO calls or aREST calls... and Arduino calls
+	// * do setPinMode when required... on calling read/write methods... and use callback if changing pinMode.
 
-  this.analogWrite = function(pin, state) {
-    jQuery.ajaxq('queue', {
-      url: 'http://' + this.address + '/analog/' + pin + '/' + state,
-      crossDomain: true
-    }).done(function(data) {
-      //console.log(data);
-    });
-  };
+	this.address = "";
+	this.id = "";
+	this.info = {};
+	this.hasTestedLocalIPFromRemote = false;
+	this.isTestingLocalIP = false;
+	this.isTestingLocalIPFromRemote = false;
+	this.isValidLocalIP = false;	
+	this.isValidLocalIPFromRemote = false;	
+	this.properties = props;
+	this.pinFormats = {};
+	this.pinModes = {};
+	this.remoteAddress = "";
 
-  this.analogRead = function(pin, callback) {
-    jQuery.ajaxq('queue', {
-      url: 'http://' + this.address + '/analog/' + pin,
-      crossDomain: true
-    }).done(function(data) {
-      callback(data);
-    });
-  };
 
-  this.digitalRead = function(pin, callback) {
-    jQuery.ajaxq('queue', {
-      url: 'http://' + this.address + '/digital/' + pin,
-      crossDomain: true
-    }).done(function(data) {
-      callback(data);
-    });
-  };
+	this.init = function(){	
+		// Initialize the object
 
-  this.getVariable = function(variable, callback) {
-    jQuery.ajaxq('queue', {
-      url: 'http://' + this.address + '/' + variable,
-      crossDomain: true
-    }).done(function(data) {
-      callback(data);
-    });
-  };
+		// Set defaults
+		this.hasTestedLocalIPFromRemote = false;
+		this.isTestingLocalIP = false;
+		this.isTestingLocalIPFromRemote = false;
+		this.isValidLocalIP = false;	
+		this.isValidLocalIPFromRemote = false;	
 
-  this.callFunction = function(called_function, parameters, callback) {
-    jQuery.ajaxq('queue', {
-      url: 'http://' + this.address + '/' + called_function + '?params=' + parameters,
-      crossDomain: true
-    }).done(function(data) {
-      if (callback != null) {callback(data);}
-    });
-  };
+		// Set dynamic properties
+		this.id = this.properties.id
+		this.remoteAddress = "http://cors.appshed.com/?u=https://cloud.arest.io/"+this.id;
+
+		// Call setup methods
+		this.configureAddress();
+
+		return this;
+	}
+
+
+	// if no localIP, connect to remote and query the ip
+
+
+
+	this.analogRead = function(pin, callback) {
+	    jQuery.ajaxq('queue', {
+	      url: this.address + '/analog/' + pin,
+	      crossDomain: true
+	    }).done(function(data) {
+	      callback(data);
+	    });
+	};
+
+	this.analogWrite = function(pin, state) {
+	    jQuery.ajaxq('queue', {
+	      url: this.address + '/analog/' + pin + '/' + state,
+	      crossDomain: true
+	    }).done(function(data) {
+	      //console.log(data);
+	    });
+	};
+
+
+	this.callFunction = function(called_function, parameters, callback) {
+		jQuery.ajaxq('queue', {
+		  url: this.address + '/' + called_function + '?params=' + parameters,
+		  crossDomain: true
+		}).done(function(data) {
+		  if (callback != null) {callback(data);}
+		});
+	};
+
+
+
+	this.configureAddress = function(){
+		// Configures which address to use for calls to this device.
+		// Priority for which `address` to use is given in the following order:
+		// * `localIP`
+		// * `localIPFromRemote`
+		//  * The default cloud webservice
+
+
+		if(this.properties.localIP && this.properties.localIP > ""){
+			if(this.isValidLocalIP)
+				this.address = "http://"+this.properties.localIP;
+			else 
+				this.testLocalIP(); 
+		}
+		else if(this.properties.localIPFromRemote && this.properties.localIPFromRemote != "undefined"){
+			if(this.isValidLocalIPFromRemote)
+				this.address = this.address = "http://"+this.properties.localIPFromRemote;
+			else 
+				this.testLocalIP(1); 
+		}
+		else{
+			this.address = this.remoteAddress;
+			if(!this.hasTestedLocalIPFromRemote)
+				this.getLocalIPFromRemote();
+		} 
+
+		return this;
+	}
+
+
+
+	this.digitalRead = function(pin, callback) {
+	    jQuery.ajaxq('queue', {
+	      url: this.address + '/digital/' + pin,
+	      crossDomain: true
+	    }).done(function(data) {
+	      callback(data);
+	    });
+	};
+
+
+	this.digitalWrite = function(pin, state) {
+console.log("Device.digitalWrite()",pin,state);
+
+	  	this.setPinMode(pin,"o").setPinFormat("d");
+console.log("Device.digitalWrite()","about to AJAX",this.address);
+
+
+
+
+
+
+
+
+
+
+	    jQuery.ajaxq('queue', {
+	      url: this.address + '/digital/' + pin + '/' + state,
+	      crossDomain: true
+	    }).done(function(data) {
+	      console.log("Device.digitalWrite() done: ",data);
+	    });
+
+
+
+
+
+
+	    return this;
+	};
+
+
+
+	this.getInfo = function(callback,fromRemote) {
+		var address = (fromRemote) ? this.remoteAddress : this.address;
+		
+		jQuery.ajaxq('queue', {
+		  url: address + '/info',
+		  crossDomain: true
+		}).done(function(data) {
+		  if (callback != null) {callback(data);}
+		});
+	};
+
+
+	this.getLocalIPFromRemote = function(){
+		// Try to get the LocalIP from the Remote address;
+
+		this.hasTestedLocalIPFromRemote = true;
+		this.getInfo(function(data){
+			try{
+				if(typeof data.variables.localIP != "undefined"){
+					var device = app.getDevice({id: data.id})
+					device.info = data;
+					device.properties.localIPFromRemote = data.variables.localIP
+					device.configureAddress();
+				}
+			}catch(er){}
+		},1);
+	};
+
+
+	this.getPinFormat = function(pinNumber){
+		return this.pinFormats[pinNumber];
+	};
+
+
+	this.getPinMode = function(pinNumber){
+		return this.pinModes[pinNumber];
+	};
+
+
+
+	this.getVariable = function(variable, callback) {
+	    jQuery.ajaxq('queue', {
+	      url: this.address + '/' + variable,
+	      crossDomain: true
+	    }).done(function(data) {
+	      callback(data);
+	    });
+	};
+
+
+	this.setPinFormat = function(pinNumber,format){
+		// Sets the format of `pinNumber` to `format`
+		this.pinFormats[pinNumber] = format;
+		return this;
+	};
+
+	
+	this.setPinMode = function(pin, state) {
+	  	// Set the mode of `pin` to `state`
+	  	// Skip the AJAX call if already set
+	  	if(this.pinModes[pin] == state)
+	  		return this;
+
+	    jQuery.ajaxq('queue', {
+			url: this.address + '/mode/' + pin + '/'+state,
+	    	crossDomain: true
+	    }).done(function(data) {
+			//console.log(data);
+			app.getDevice(data.id).pinModes[pin] = state;
+	    });
+
+	    return this;
+	};
+
+
+	this.testLocalIP = function(fromRemote){
+		// Tests `this.localIP` to determine if the app can use it instead of the Remote address
+		// Optional: If `fromRemote` is true it will test `this.localIPFromRemote`
+
+
+		if(fromRemote){
+			// If already testing, return
+			if(this.isTestingLocalIPFromRemote)
+				return
+			this.isTestingLocalIPFromRemote = true;
+			this.isValidLocalIPFromRemote = false;	
+		} else {
+			if(this.isTestingLocalIP)
+				return
+			this.isTestingLocalIP = true;
+			this.isValidLocalIP = false;	
+		}
+
+		var originalID = this.id;
+
+		var testIP = this.properties.localIP;
+		if(fromRemote)
+			testIP = this.properties.localIPFromRemote;
+
+		// Query the IP and see if it is valid
+	    jQuery.ajaxq('queue', {
+			url: "http://"+testIP,
+			crossDomain: true
+	    }).done(function(data) {
+			if(data.id = originalID){
+				if(fromRemote)
+					app.getDevice(data.id).isValidLocalIPFromRemote = true;
+				else
+					app.getDevice(data.id).isValidLocalIP = true;
+				app.getDevice(data.id).configureAddress()					
+			}
+	    });
+
+
+	}
+
+	this.updateProperties = function(props){
+		var addressChanges = false;
+
+
+		// has the localIP changed?
+		if((typeof props.localIP == "string") && 
+			(!this.properties.localIP || this.properties.localIP != props.localIP)
+		){
+
+			this.isTestingLocalIP = false;
+			// this.isTestingLocalIPFromRemote = false;
+			this.isValidLocalIP = false;	
+			// this.isValidLocalIPFromRemote = false;	
+
+			addressChanges = true;
+		}
+
+
+		for(var k in props)
+			this.properties[k] = props[k]
+
+		if(addressChanges)
+			this.configureAddress();
+
+		return this;
+	};
+
+
+	  // We must call init() on the Device
+	  this.init();
 }
 
+	// INITIALISE App
+	//setTimeout(function(){app.init()},100);
+	app.init()
+
+} catch(er){alert(er)}
