@@ -11,7 +11,7 @@
 	// v1.1.3 (10-06-2016) app.getRandomColor(), app.appendToVariable(), screen.setBackgroundColor
 	// v1.1.4 (20-06-2016) Support for Device LocalIP usage
 	// v1.1.5 (22-06-2016) Enhancements to Device class
-	// v1.1.6 (02-07-2016) 
+	// v1.1.6 (02-07-2016) Support for IoT Board layouts
 
 
 	// TO DO
@@ -37,17 +37,20 @@ try{
 
 		// APP Properties
 		app._appIPAddresses = [];
+		app._currentItemId = null;
 		app._currentScreen = null;
 		app._defaultDevice = "IOIO";
 		app._handler_arestScriptsInterval = null;
 		app._intervals = []; // an array of all the Intervals started for the app using app.setInterval()
+		app._screen_el = null;
 		app._scripts;
 		app._scriptLoaded_jquery = false;
 		app._scriptLoaded_ajaxq = false;
 		app._scriptLoading_ajaxq = false;
 		app._scriptLoading_jquery = false;
 		app._scriptsLoaded_arest = false;
-		app._devices = []
+		app._devices = [];
+		app._url_boardWithPins = 'https://iot-api.appshed.com/api/boards/withpins/';
 
 
 
@@ -58,11 +61,14 @@ try{
 
 
 
-
 		app.init = function(){
 
 			if(app._REQUIREARESTSCRIPTS)
 				app.setInterval(app.addARESTScripts(),1000,10000)
+
+			app.phone.addEvent('screen',function( id,el ){
+				app.addScreenClickHandlers(id,el)
+			});
 
 
 //				setTimeout(function(){
@@ -149,6 +155,25 @@ try{
 
 
 
+
+
+		app.addScreenClickHandlers = function(id,el){
+			// adds the event handlers to the `Screen` to capture `click` events
+
+			if(el)
+				app._screen_el = el;
+
+			if(app._screen_el){
+				app._screen_el.getElements('.item').removeEvent('click', app.itemClicked);
+				app._screen_el.getElements('.item').addEvent('click', app.itemClicked);
+			}
+
+
+			return this;
+		}
+
+
+
 		app.addScript = function(url){
 			// Adds a `<script>` tag with `src = url` to the `<head>` 
 			var head= document.getElementsByTagName('head')[0];
@@ -204,11 +229,6 @@ try{
 
 
 
-
-
-
-
-
 		app.findClass = function(element, className) { 
 			// Returns the first `DOM Element` matching 
 			return element.querySelector("." + className) 
@@ -232,6 +252,10 @@ try{
 		}
 
 
+
+		app.getIdFromDOMId = function(domId){
+			return parseInt(String(domId).replace(/[a-z]/g,""))
+		}
 
 
 
@@ -327,7 +351,14 @@ try{
 		}
 
 
+
+
 		app.getItem = function(id){
+			// Returns an `Item` object for `id`
+			// If no `id` supplied it returns the `Current Item` (last item clicked)
+
+			if(!id && app._currentItemId)
+				id = app._currentItemId;
 
 			try{
 
@@ -458,6 +489,22 @@ try{
 
 
 
+		app.itemClicked = function(e){
+			// Saves the `_currentItemId` when `Element` `e` is clicked.
+			// Returns `this`
+
+			if(e.target.classList.contains('item'))
+				app._currentItemId = app.getIdFromDOMId(e.target.id)
+			if(e.target.parentElement.classList.contains('item'))
+				app._currentScreenentItemId = app.getIdFromDOMId(e.target.parentElement.id)
+			if(e.target.parentElement.parentElement.classList.contains('item'))
+				app._currentItemId = app.getIdFromDOMId(e.target.parentElement.parentElement.id)
+
+			return this;
+				
+		}
+
+
 		app.prependToVariable = function(variable,value){
 			// prepends `value` to `variable`
 			return this.appendToVariable(variable,value,true);
@@ -486,7 +533,9 @@ try{
 					var thisURL = 'http://'+ipAddress;
 					var response;
 
-					app.getDevice({id:"scanAttempt-"+thisURL,localIP: ipAddress}).getInfo(function(data){console.log("scanIPSubnet",data)})
+					app.getDevice({id:"scanAttempt-"+thisURL,localIP: ipAddress}).getInfo(function(data){
+console.log("scanIPSubnet",data)
+					})
 
 				}
 			}
@@ -498,6 +547,9 @@ try{
 
 
 		}
+
+
+
 
 		app.setInterval = function(func,delay,timeout){
 			// repeatedly calls a function with a fixed delay
@@ -517,33 +569,50 @@ try{
 
 
 
-		app.setPin = function(pinName,val,id){
-			// Sets the pin called `pinName` to `val`
+
+
+
+
+		app.setPin = function(pinNameOrNumber,val,id){
+			// Sets the pin number `pinNameOrNumber` to `val`
 			// Optional `id` to use a specific `Device`
 			// If no `id` passed in the default `Device` is used (`IOIO` is the initial default device)
 
 
-app.appendToVariable("log","........... _defaultDevice: "+this._defaultDevice)
+console.log("setPin","_defaultDevice: ",this._defaultDevice)
 
 			var device = this.getDevice(id?id:this._defaultDevice)
 
 			// For IOIO use built in iot.setPin
 			if(this._defaultDevice == "IOIO"){
-app.appendToVariable("log","........... setPin IOIO "+pinName+" = "+val)
 				try{
-					window.appbuilder.events.iot.setPin(pinName,val)
+					window.appbuilder.events.iot.setPin(pinNameOrNumber,val)
 				}catch(er){this.handleError(er,"app.setPin() IOIO error")}
-			} else {
 
+			} else {
 				// all other devices... use Device methods
-	app.appendToVariable("log","........... Device: "+device.address);
-				// if not IOIO... presume that the pinName is in the format: nXXX
-				// where 'n' is pinNumber and XXX is the Label/description
-				var pinNumber = parseInt(pinName)
-	console.log("setPin pinNumber",pinNumber)
-	console.log("setPin value",val)
+
+				var pinNumber = null;
+
+				// Check to see if we are using a board Layout
+				if(device.layout){
+					// go through outputs and search for name
+					var outputs = device.layout.outputs;
+
+					for(var i=0;i<outputs.length;i++){
+						if(outputs[i].variable == pinNameOrNumber){
+							pinNumber = outputs[i].pin;
+						}
+					}
+				} else {
+					// no layout, so presume a pin number passed in
+					pinNumber = parseInt(pinNameOrNumber)
+				}
+
+				// no Layout - or invalid pinName, so check to see if it's a pin number
+
+
 				if(isNaN(pinNumber)){
-					console.log("Error: app.setPin, pinNumber not valid")						
 				} else {
 
 					// if val is boolean then use digital output, else analog
@@ -552,7 +621,7 @@ app.appendToVariable("log","........... setPin IOIO "+pinName+" = "+val)
 					else if(val == false || val == "false")
 						device.digitalWrite(pinNumber,0)
 					else if(val == 1 || val == 0){ // special case: 1/0 might be digital or analog
-					 	if(device.getPinFormat[pinNumber] == "a")
+					 	if(device.getPinFormat(pinNumber) == "a")
 					 		device.analogWrite(pinNumber,val)
 					 	else
 					 		device.digitalWrite(pinNumber,val)
@@ -564,8 +633,50 @@ app.appendToVariable("log","........... setPin IOIO "+pinName+" = "+val)
 
 			}
 
-			return device;
+			return this;
 		}
+
+
+
+		app.togglePin = function(pinNameOrNumber,val,id){
+			// Toggles the pin `pinNameOrNumber` 
+			// Optional `id` to use a specific `Device`
+			// If no `id` passed in the default `Device` is used (`IOIO` is the initial default device)
+
+
+			var device = this.getDevice(id?id:this._defaultDevice)
+
+			// For IOIO use built in iot.setPin
+			if(this._defaultDevice == "IOIO"){
+				try{
+			        window.appbuilder.events.iot.togglePinValue(pinName)
+				}catch(er){this.handleError(er,"app.togglePin() IOIO error")}
+			} else {
+				// TODO Code to toggle in for device
+			}
+		}
+
+
+
+
+		app.togglePinValue = function(pinNameOrNumber,val,id){
+			// Override method for `togglePin`
+			return this.togglePin(pinNameOrNumber,val,id);
+		}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -760,7 +871,6 @@ app.appendToVariable("log","........... setPin IOIO "+pinName+" = "+val)
 
 			this.swap = function(otherId){
 				// swaps this icon with the other 
-
 				try{
 					var parentNode = this.element.parentNode;
 					var thisClone = this.element.cloneNode(true);
@@ -769,9 +879,12 @@ app.appendToVariable("log","........... setPin IOIO "+pinName+" = "+val)
 					var otherClone = otherItem.element.cloneNode(true);
 					parentNode.replaceChild(otherClone,this.element);
 					otherParent.replaceChild(thisClone,otherItem.element);
+
+					app.addScreenClickHandlers();
+
 					return this;
 				}catch(er){
-					app.handleError(er,"Item.swapIcon()")
+					app.handleError(er,"Item.swap()")
 				}
 			}
 
@@ -841,7 +954,7 @@ app.appendToVariable("log","........... setPin IOIO "+pinName+" = "+val)
 			}
 
 
-		    this.addIconRow = function([rowHTML,index,data]){
+		    this.addIconRow = function(rowHTML,index,data){
 		    	// Adds a row of `Icons` by inserting `rowHTML` into the table
 		    	// `index` specifies the row where to insert. Defaults to -1 (bottom of the table)
 		    	// If `rowHTML` is ommitted then the HTML is generated using `data`
@@ -1259,6 +1372,7 @@ function Device(props) {
 	this.isTestingLocalIPFromRemote = false;
 	this.isValidLocalIP = false;	
 	this.isValidLocalIPFromRemote = false;	
+	this.layout = null;
 	this.properties = props;
 	this.pinFormats = {};
 	this.pinModes = {};
@@ -1281,6 +1395,7 @@ function Device(props) {
 
 		// Call setup methods
 		this.configureAddress();
+		this.configureLayout();
 
 		return this;
 	}
@@ -1350,6 +1465,21 @@ function Device(props) {
 	}
 
 
+	this.configureLayout = function(){
+		// configures the board layout using the IoT Builder layout settings
+		// Using a layout makes it much simpler for novice users as they make use of the IoT Builder to configure the board.
+		// Using a layout is optional. The app can simply set pins using pin numbers directly.
+
+		if(this.properties.layoutId && this.properties.layoutId > ""){
+			// attempt to get the board layout
+			this.getLayout();
+		} else {
+			// remove the layout object to make sure it is not used.
+			this.layout = null;
+		}
+
+		return this;
+	}
 
 	this.digitalRead = function(pin, callback) {
 	    jQuery.ajaxq('queue', {
@@ -1362,30 +1492,16 @@ function Device(props) {
 
 
 	this.digitalWrite = function(pin, state) {
-console.log("Device.digitalWrite()",pin,state);
+		// Sets the digital output on `pin` to `state`
+		// `state` must be either `1` or `0`
 
-	  	this.setPinMode(pin,"o").setPinFormat("d");
-console.log("Device.digitalWrite()","about to AJAX",this.address);
-
-
-
-
-
-
-
-
-
+	  	this.setPinMode(pin,"o").setPinFormat(pin,"d");
 
 	    jQuery.ajaxq('queue', {
 	      url: this.address + '/digital/' + pin + '/' + state,
 	      crossDomain: true
 	    }).done(function(data) {
-	      console.log("Device.digitalWrite() done: ",data);
 	    });
-
-
-
-
 
 
 	    return this;
@@ -1403,6 +1519,26 @@ console.log("Device.digitalWrite()","about to AJAX",this.address);
 		  if (callback != null) {callback(data);}
 		});
 	};
+
+
+
+
+	this.getLayout = function(callback) {
+		if(!this.properties.layoutId)
+			return this;
+
+		var address = app._url_boardWithPins + this.properties.layoutId;
+		var deviceId = this.id;
+
+		jQuery.ajax({
+		  url: address,
+		  crossDomain: true
+		}).done(function(data) {
+		  if (callback != null) {callback(data);}
+		  else{app.getDevice(deviceId).setLayout(data)}
+		});
+	};
+
 
 
 	this.getLocalIPFromRemote = function(){
@@ -1443,8 +1579,21 @@ console.log("Device.digitalWrite()","about to AJAX",this.address);
 	};
 
 
+
+
+	this.setLayout = function(data){
+		// sets the `layout` to `data` (expecting a JSON object)
+
+		this.layout = data;
+		return this;
+
+	};
+
+
 	this.setPinFormat = function(pinNumber,format){
 		// Sets the format of `pinNumber` to `format`
+		// `format` must be either `d` for digital or `a` for analog
+
 		this.pinFormats[pinNumber] = format;
 		return this;
 	};
@@ -1452,6 +1601,8 @@ console.log("Device.digitalWrite()","about to AJAX",this.address);
 	
 	this.setPinMode = function(pin, state) {
 	  	// Set the mode of `pin` to `state`
+	  	// `state` must be either `i` for input or `o` for output.
+
 	  	// Skip the AJAX call if already set
 	  	if(this.pinModes[pin] == state)
 	  		return this;
@@ -1511,6 +1662,7 @@ console.log("Device.digitalWrite()","about to AJAX",this.address);
 
 	this.updateProperties = function(props){
 		var addressChanges = false;
+		var layoutChanges = false;
 
 
 		// has the localIP changed?
@@ -1526,12 +1678,20 @@ console.log("Device.digitalWrite()","about to AJAX",this.address);
 			addressChanges = true;
 		}
 
+		// has the layout changed
+		if( (props.layoutId && props.layoutID != this.properties.layoutId) ||
+			!props.layoutId || props.layoutId == ""	)
+			layoutChanges = true;
 
+		// update each property using values passed in
 		for(var k in props)
 			this.properties[k] = props[k]
 
 		if(addressChanges)
 			this.configureAddress();
+
+		if(layoutChanges)
+			this.configureLayout();
 
 		return this;
 	};
