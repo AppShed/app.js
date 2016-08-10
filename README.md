@@ -27,8 +27,8 @@ To use  `app.js` in your AppShed app:
 * You can now call any of the `app` methods as `JavaScript` actions
   * Add an item to your app
   * Change the `Action` to `JavaScript`
-  * use the format `app.method()`, e.g. `app.getScreen()`
-  * This example will set the title of the current screen: `app.getScreen().setTitle("Hello World")`
+  * use the format `app.method()`, e.g. `app.getItem(123)`
+
 
 
 ## app (Object)
@@ -155,5 +155,10 @@ This is a top-level class representing a Screen. In AppShed there are four main 
  * v1.1.1 (02-06-2016) error handling, setInterval()
  * v1.1.2 (02-06-2016) app.addDevice()
  * v1.1.3 (10-06-2016) app.getRandomColor(), app.appendToVariable(), screen.setBackgroundColor
+ * v1.1.4 (20-06-2016) Support for Device LocalIP usage
+ * v1.1.5 (22-0 016) Enhancements to Device class
+ * v1.1.6 (02-07-2016) Support for IoT Board layouts
+ * v1.1.7 (23-07-2016) Support for built-in LED, simpler device calling, stability improvements
+ * v1.1.8 (10-08-2016) Support for findLocalDevices, blink LED
 
 
