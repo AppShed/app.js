@@ -14,6 +14,9 @@
 	// v1.1.6 (02-07-2016) Support for IoT Board layouts
 	// v1.1.7 (23-07-2016) Support for built-in LED, simpler device calling, stability improvements
 	// v1.1.8 (10-08-2016) Support for findLocalDevices, blink LED
+	// v1.2.1 (06-10-2016) aREST Pro support added. aREST local-and-cloud not supported
+	// v1.2.2 (26-10-2016) Minor changes and additions
+
 
 	// TO DO
 	// from V1.1.5 it is not working in Android native app - needs fixing.
@@ -229,34 +232,32 @@ try{
 		}
 	}
 
+ 
 
 
-	app.blink = function(id,number,duration,noBgChange){
-		// Blink the built-in LED 
-		// Optional `id` to specify a device (Default: all connected devices will blink)
+
+
+	app.blinkAllDevices = function(number,duration,noBgChange){
+		// Blink all connected devices  
 		// The parameters `number`,`duration`,`noBgChange` are passed through to `Device.blink()`
 		// Return `this`
 
-		try{
-			if(id)
-				this.getDevice(id).blink()
-			else{
-				for(var k in this._devices)
-					this._devices[k].blink(number,duration,noBgChange);
-			}				
-		}catch(er){
-			app.handleError(er,"app.blink()")
-		}
+		for(var k in this._devices){
+			this._devices[k].blink(number,duration,noBgChange);			
+		}				
 
 		return this;
 
 	}
+
+
 
 	app.clearDevices = function(){
 		// Clears all `Devices` that have been connected
 		// Returns `this`
 
 		this._devices = {};
+		this._defaultDevice = "";
 		return this;
 	}
 
@@ -271,6 +272,18 @@ try{
 		}catch(er){
 		}
 
+	}
+
+
+	app.devicesToString = function(){
+		// Returns a string represenation of all the connected `devices`
+		// Default layout is: id - local_ip
+
+		var rVal = "";
+		for(var k in this._devices)
+			rVal += this._devices[k].id + " - " + this._devices[k].variables.local_ip + "\n";
+
+		return rVal;
 	}
 
 
@@ -316,7 +329,8 @@ try{
 		// The first device found will be made the default device
 
 
-
+		// iPhone Personal Hotspot Tethering IP range... 172.20.10.1-172.20.10.3
+		// Android Hotspot IP 192.168.42.x
 
 	  try{
 
@@ -351,9 +365,10 @@ try{
 						// The local_ip is valid, so indicate this in props
 						var props = {id: data.id, name: data.name, hardware: data.hardware, connected: data.connected, local_ip: this.ipAddress, isValidLocalIP: true}
 						var device = app.getDevice(props);
+						device.info = data;
 
-						// If IOIO stil the default, make this device default
-						if(app._defaultDevice == "IOIO")
+						// If IOIO stil the default, or no default, make this device default
+						if(!app._defaultDevice || app._defaultDevice == "" || app._defaultDevice == "IOIO")
 							app._defaultDevice = data.id;
 
 						// Some devices (Arduino) sometimes do not return variables - due to requests in rapid succession. 
@@ -567,6 +582,7 @@ try{
 		// Searches for the Local IP Address for the app
 		// IP addresses starting with 10. and 192. are treated as local
 		// `callback(ip_addr)` is called if a local IP is found.
+		// The app needs internet connectivity to do this.
 
 		this.getIPs(function(ip_addr){
 			if(String(ip_addr).match(/^10\./) || String(ip_addr).match(/^192\./)){
@@ -1003,6 +1019,17 @@ try{
 			return this;
 		}
 
+
+		this.setTitleColor = function(color){
+			//set the color of Title to `color`
+			try{
+				app.findClass(this.element,"title").style.color = color
+			}catch(er){
+				app.handleError(er,"Item.setTitleColor()")
+			}
+
+			return this;
+		}
 
 		this.setSubTitle = function(str){
 			//set the value of Sub Title to `str`
@@ -1523,6 +1550,7 @@ try{
 		this.id = "";
 		this.hardware = ""; // This value is passed in from the device
 		this.hasTestedLocalIPFromRemote = false;
+		this.info = {}; // Holds the data returned by `getInfo()`
 		this.isTestingLocalIP = false;
 		this.isTestingLocalIPFromRemote = false;
 		this.isValidLocalIP = false;	
@@ -1530,6 +1558,7 @@ try{
 		this.layout = null;
 		this.local_ipFromRemote = null; // Stores the local IP Address received from Remote
 		this.name = ""; // This value is passed in from the device
+		this.pendingMethods = {analogRead:{},analogWrite:{},digitalRead:{},digitalWrite:{}}; // An object of objects for each of the IO methods. This holds a flag when a certain method is pending (i.e. AJAX call in process)
 		this.properties = props; // Stores the `props` passed in when the device is instantiated  
 		this.pinFormats = {};
 		this.pinModes = {};
@@ -1548,6 +1577,7 @@ try{
 			this.isTestingLocalIPFromRemote = false;
 			this.isValidLocalIP = false;	
 			this.isValidLocalIPFromRemote = false;	
+			this.pendingMethods = {analogRead:{},analogWrite:{},digitalRead:{},digitalWrite:{}};
 
 			// Set dynamic properties
 			this.id = this.properties.id
@@ -1596,6 +1626,7 @@ try{
 		    });
 		    return this;
 		};
+
 
 		this.analogWrite = function(pin, state) {
 		  	this.setPinMode(pin,"o").setPinFormat(pin,"a");
@@ -1651,6 +1682,16 @@ try{
 			});
 		};
 
+
+
+		this.cancelPending = function(method,pin,state){
+			// Cancels the `method`,`pin`,`state` combination from the pending methods.
+			// Return `this`
+
+			this.pendingMethods[method][pin+"_"+state] = false;
+
+			return this;
+		}
 
 
 		this.configureAddress = function(){
@@ -1714,17 +1755,64 @@ try{
 		};
 
 
+
 		this.digitalWrite = function(pin, state) {
 			// Sets the digital output on `pin` to `state`
 			// `state` must be either `1` or `0`
+
+			if(this.isPending("digitalWrite",pin,state)){
+				return this;
+			}
+
+			this.setPending("digitalWrite",pin,state);
 		  	this.setPinMode(pin,"o").setPinFormat(pin,"d");
+			
+
 		    jQuery.ajaxq(this.id, {
 		      url: this.address + '/digital/' + pin + '/' + state,
-		      crossDomain: true
-		    }).done(function(data) {
+		      crossDomain: true,
+		      id: this.id
+		    }).always(function(data) {
+		    	app.getDevice(this.id).cancelPending("digitalWrite",pin,state);
 		    });
 		    return this;
 		};
+
+
+
+
+		this.fade = function(pin,direction,duration,noBgChange){
+			// Fade `pin` on or off, depending on `direction`.
+			// Optional `pin` is the pin number (Default: 5, except on RaspberryPi: 7)
+			// If `direction` is "on" or 1, the pin will fade from 0 to 100% 
+			// If `direction` is "out", "off" or 0, the pin will fade from 100% to 0
+			// Default `direction` is 1
+			// Optional `duration` determines how long the fade should take (Default: 5 seconds) 
+			// Optional `noBgChange` ensures that the Screen BackgroundColor is not changed during blink
+			// Returns `this`
+
+			var pin = pin || ((this.hardware == "rpi")?7:5);
+			var direction = (direction != null && (direction == 0 || direction == "off" || direction == "out")) ? 0 : 1;
+			var deviceId = this.id;
+
+			if(direction){
+				this.analogWrite(pin,0);
+				setTimeout(function(){app.getDevice(deviceId).analogWrite(pin,20)},1000)
+				setTimeout(function(){app.getDevice(deviceId).analogWrite(pin,40)},2000)
+				setTimeout(function(){app.getDevice(deviceId).analogWrite(pin,60)},3000)
+				setTimeout(function(){app.getDevice(deviceId).analogWrite(pin,80)},4000)
+				setTimeout(function(){app.getDevice(deviceId).analogWrite(pin,100)},5000)				
+			} else {
+				this.analogWrite(pin,100);
+				setTimeout(function(){app.getDevice(deviceId).analogWrite(pin,80)},1000)
+				setTimeout(function(){app.getDevice(deviceId).analogWrite(pin,60)},2000)
+				setTimeout(function(){app.getDevice(deviceId).analogWrite(pin,40)},3000)
+				setTimeout(function(){app.getDevice(deviceId).analogWrite(pin,20)},4000)
+				setTimeout(function(){app.getDevice(deviceId).analogWrite(pin,0)},5000)				
+			}
+
+			return this;
+		}
 
 
 
@@ -1732,6 +1820,7 @@ try{
 			// Queries the device to get basic info
 			// `callback` is the function run when the `data` is returned from the device
 			// Optional `address` can be passed in, the default address is `this.address`
+			// Returns `this`
 
 			var address = address || this.address;
 
@@ -1745,9 +1834,11 @@ try{
 			  url: address + '/info',
 			  crossDomain: true
 			}).done(function(data) {
-				try{app.getDevice(data.id).updateInfo(data)}catch(er){app.handleError(er,"Device.getInfo()")};
+				try{app.getDevice(data.id).updateInfo(data).info = data}catch(er){app.handleError(er,"Device.getInfo()")};
 				if (callback != null) {callback(data);}
 			});
+
+			return this;
 		};
 
 
@@ -1830,6 +1921,17 @@ try{
 
 
 
+		this.isPending = function(method,pin,state){
+			// Returns true if the `method`,`pin`,`state` combination is pending.
+
+			try{return this.pendingMethods[method][pin+"_"+state];}catch(er){}
+
+			// If error then the key does not exist, so pending must be false because the AJAX wasn't started
+			return false
+		}
+
+
+
 
 		this.setLayout = function(data){
 			// sets the `layout` to `data` (expecting a JSON object)
@@ -1869,6 +1971,25 @@ try{
 
 
 
+		this.setPending = function(method,pin,state){
+			// Sets a flag to indicate that a `method`,`pin`,`state` combination is pending (i.e. the AJAX request is running)
+			// This is used to stop duplicate requests being sent continuously thereby overloading the device
+			// `method` must be one of:
+			// * `analogRead`
+			// * `analogWrite`
+			// * `digitalRead`
+			// * `digitalWrite`
+			// Return `this`
+
+			// Create a key using pin_state
+			this.pendingMethods[method][pin+"_"+state] = true;
+
+			return this;
+
+		}
+
+
+
 		this.setPin = function(pinNameOrNumber,val){
 			// Sets the pin number `pinNameOrNumber` to `val`
 			// Returns `this`
@@ -1897,12 +2018,13 @@ try{
 				// not a number, do nothing
 			} else {
 
-				// if val is boolean then use digital output, else analog
+				// if val is boolean then use digital output
 				if(val == true || val == "true" || String(val).match(/on/i))
 					this.digitalWrite(pinNumber,1)
 				else if(val == false || val == "false" || String(val).match(/of/i))
 					this.digitalWrite(pinNumber,0)
-				else if(val == 1 || val == 0){ // special case: 1/0 might be digital or analog
+				else if(val == 1 || val == 0){ // special case: 1/0 might be digital or analog. 
+					// Presume digital unless analog specified.
 				 	if(this.getPinFormat(pinNumber) == "a")
 				 		this.analogWrite(pinNumber,val)
 				 	else
@@ -2080,3 +2202,6 @@ try{
 
 
 } catch(er){console.log("ERROR IN app.js",er)}
+
+
+
