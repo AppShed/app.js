@@ -16,7 +16,8 @@
 	// v1.1.8 (10-08-2016) Support for findLocalDevices, blink LED
 	// v1.2.1 (06-10-2016) aREST Pro support added. aREST local-and-cloud not supported
 	// v1.2.2 (26-10-2016) Minor changes and additions
-
+	// v1.2.3 (07-11-2016) Support for aREST Pro enhancements
+	// v1.2.4 (12-11-2016) Send aREST Commands - multiple pin settings in one API call, servo support
 
 	// TO DO
 	// from V1.1.5 it is not working in Android native app - needs fixing.
@@ -47,6 +48,9 @@ try{
 	app._devices = {};
 	app._handler_arestScriptsInterval = null;
 	app._intervals = {}; // an array of all the Intervals started for the app using app.setInterval()
+	app._ioBatchMode = true; // Send IO commands to devices in batches
+	app._ioBatchTimeout = 100; // how long to wait while collecting IO commands (e.g. from multiple Blockly commands)
+	app._ioMaxCommandsPerBatch = 4;
 	app._scanIPTimeout = 4000; // The timeout for requests when scanning local IP addresses.
 	app._screen_el = null;
 	app._scripts;
@@ -56,7 +60,6 @@ try{
 	app._scriptLoading_jquery = false;
 	app._scriptsLoaded_arest = false;
 	app._url_boardWithPins = 'https://iot-api.appshed.com/api/boards/withpins/';
-
 
 
 
@@ -392,7 +395,7 @@ try{
 	}
 
 
-	app.getDevice = function(idOrProps){
+	app.getDevice = function(idOrProps,key){
 		// Returns the device for `idOrProps`
 		// `idOrProps` can be a `deviceId` (a ten character string) 
 		// or an object in the form
@@ -400,7 +403,9 @@ try{
 		// If no `idOrProps` passed in, the default device is returned
 
 		var idOrProps = idOrProps || this._defaultDevice;
-		var props = app.idOrPropsToObject(idOrProps)
+		var props = app.idOrPropsToObject(idOrProps);
+		if(key)
+			props.key = key;
 		var device = app._devices[String(props.id).trim()]
 
 		if(device){
@@ -1548,9 +1553,14 @@ try{
 		this.address = "";
 		this.connected = false; // This value is passed in from the device
 		this.id = "";
+		this.handle_ioBatchCommands = null; // a handle for the timeout to send batch commands
 		this.hardware = ""; // This value is passed in from the device
 		this.hasTestedLocalIPFromRemote = false;
 		this.info = {}; // Holds the data returned by `getInfo()`
+		this.ioBatchCommands = []; // Array of commands to be sent as a batch to the device
+		this.ioBatchMode = app._ioBatchMode; // Send IO commands to devices in batches, defaults to `true`
+		this.ioBatchTimeout = app._ioBatchTimeout; // how long to wait while collecting IO commands (e.g. from multiple Blockly commands), Defaults to `100`
+		this.ioMaxCommandsPerBatch = app._ioMaxCommandsPerBatch = 4;
 		this.isTestingLocalIP = false;
 		this.isTestingLocalIPFromRemote = false;
 		this.isValidLocalIP = false;	
@@ -1580,8 +1590,12 @@ try{
 			this.pendingMethods = {analogRead:{},analogWrite:{},digitalRead:{},digitalWrite:{}};
 
 			// Set dynamic properties
-			this.id = this.properties.id
+			this.id = this.properties.id;
+			this.key = this.properties.key; // Optional key for the aREST Pro account
 			this.remoteAddress = "http://cors.appshed.com/?u=https://cloud.arest.io/"+this.id;
+			if(this.key)
+				this.remoteAddress = "http://cors.appshed.com/?u=https://pro.arest.io/"+this.id;
+
 
 			// Update the device info using properties passed in
 			this.updateInfo(this.properties);
@@ -1591,7 +1605,29 @@ try{
 			this.configureLayout();
 
 			return this;
-		}
+		};
+
+
+		this.addBatchCommand = function(format,pin,value,duration){
+			// Add a command to the batch, and send after a timeout
+			// This allows multiple commands issued in close succession to be batched up, reducing dealys in multiple API calls			
+
+			this.ioBatchCommands[this.ioBatchCommands.length] = [format,pin,value,duration];
+
+			// start the timeout if not already running
+			if(!this.handle_ioBatchCommands){
+console.log("Starting batch timeout, handle is ",this.handle_ioBatchCommands)				
+				var deviceId = this.id;
+
+				this.handle_ioBatchCommands = setTimeout(function(){
+					app.getDevice(deviceId).sendBatchCommands().handle_ioBatchCommands = undefined; 
+				},this.ioBatchTimeout);
+console.log("Started batch timeout, handle is ",this.handle_ioBatchCommands)				
+
+			}
+
+		};
+
 
 
 		this.alertPinValue = function(pin,format){
@@ -1611,7 +1647,7 @@ try{
 				});
 
 			return this;
-		}
+		};
 
 
 
@@ -1619,7 +1655,7 @@ try{
 
 		  	this.setPinMode(pin,"i").setPinFormat(pin,"a");
 		    jQuery.ajaxq(this.id, {
-		      url: this.address + '/analog/' + pin,
+		      url: this.address + '/analog/' + pin +'%3Fkey='+this.key,
 		      crossDomain: true
 		    }).done(function(data) {
 		      if(callback != null) callback(data);
@@ -1628,16 +1664,47 @@ try{
 		};
 
 
-		this.analogWrite = function(pin, state) {
+		this.analogWrite = function(pin, state, noBatch) {
+			// Send an API call to the device to write an analog `value` to `pin`.
+			// Optionally If `useBatchCommands` is true the command is cached and sent after a short delay in a batch
+
+
 		  	this.setPinMode(pin,"o").setPinFormat(pin,"a");
-		    jQuery.ajaxq(this.id, {
-		      url: this.address + '/analog/' + pin + '/' + state,
-		      crossDomain: true
-		    }).done(function(data) {
-		    });
+
+		  	if(noBatch || !this.ioBatchMode){
+			    jQuery.ajaxq(this.id, {
+			      url: this.address + '/analog/' + pin + '/' + state +'?key='+this.key,
+			      crossDomain: true
+			    }).done(function(data) {
+			    });		  		
+		  	} else {
+		  		this.addBatchCommand(0,pin,state,0);
+		  	}
 		    return this;
 		};
 
+
+
+		this.attachServos = function(attachArray){
+			// Attach servos to pins
+			// `attachArray` is a two-dimensional array [x][2]
+			// For each x, the array has the servo number (e.g. 1) and the pin number (e.g. 7)
+			
+			var params = ""; // Build up the params to send to the board to attach the required arrays
+
+			for(var i=0;i<attachArray.length; i++){
+				// for first one add 
+				if(i>0)
+					params += ":"; // `:` is the separator between servo definitions
+				params += attachArray[0]+","+attachArray[1];
+
+			}
+
+			if(params>"")
+				this.callFunction("attachServos",params);
+
+			return this;
+		};
 
 
 		this.blink = function(number,duration,noBgChange){
@@ -1674,8 +1741,10 @@ try{
 
 
 		this.callFunction = function(called_function, parameters, callback) {
+			// Calls a function defined on the device
+
 			jQuery.ajaxq(this.id, {
-			  url: this.address + '/' + called_function + '?params=' + parameters,
+			  url: this.address + '/' + called_function + '%3Fparams=' + parameters +'%26key='+this.key,
 			  crossDomain: true
 			}).done(function(data) {
 			  if (callback != null) {callback(data);}
@@ -1746,7 +1815,7 @@ try{
 
 		  	this.setPinMode(pin,"i").setPinFormat(pin,"d");
 		    jQuery.ajaxq(this.id, {
-		      url: this.address + '/digital/' + pin,
+		      url: this.address + '/digital/' + pin +'%3Fkey='+this.key,
 		      crossDomain: true
 		    }).done(function(data) {
 		      if(callback != null) callback(data);
@@ -1756,26 +1825,35 @@ try{
 
 
 
-		this.digitalWrite = function(pin, state) {
+		this.digitalWrite = function(pin, state, noBatch) {
 			// Sets the digital output on `pin` to `state`
 			// `state` must be either `1` or `0`
+			// Optionally If `useBatchCommands` is true the command is cached and sent after a short delay in a batch
 
-			if(this.isPending("digitalWrite",pin,state)){
-				return this;
-			}
-
-			this.setPending("digitalWrite",pin,state);
 		  	this.setPinMode(pin,"o").setPinFormat(pin,"d");
-			
 
-		    jQuery.ajaxq(this.id, {
-		      url: this.address + '/digital/' + pin + '/' + state,
-		      crossDomain: true,
-		      id: this.id
-		    }).always(function(data) {
-		    	app.getDevice(this.id).cancelPending("digitalWrite",pin,state);
-		    });
+		  	if(noBatch || !this.ioBatchMode){
+
+				if(this.isPending("digitalWrite",pin,state)){
+					return this;
+				}
+
+				this.setPending("digitalWrite",pin,state);
+
+				
+
+			    jQuery.ajaxq(this.id, {
+			      url: this.address + '/digital/' + pin + '/' + state + '%3Fkey='+this.key,
+			      crossDomain: true,
+			      id: this.id
+			    }).always(function(data) {
+			    	app.getDevice(this.id).cancelPending("digitalWrite",pin,state);
+			    });
+		  	} else {
+		  		this.addBatchCommand(1,pin,state,0);
+		  	}
 		    return this;
+
 		};
 
 
@@ -1831,10 +1909,11 @@ try{
 				address = 'http://'+address;
 
 			jQuery.ajaxq(this.id, {
-			  url: address + '/info',
+			  url: address + '/info' +'%3Fkey='+this.key,
 			  crossDomain: true
 			}).done(function(data) {
-				try{app.getDevice(data.id).updateInfo(data).info = data}catch(er){app.handleError(er,"Device.getInfo()")};
+				try{app.getDevice(data.id).updateInfo(data).info = data}
+				catch(er){app.handleError(er,"Device.getInfo()")};
 				if (callback != null) {callback(data);}
 			});
 
@@ -1866,7 +1945,10 @@ try{
 		this.getLEDPin = function(){
 			// Returns the `pinNumber` for the built-in LED for this device
 
-			// Need to know the hardware type - from the "name" parameter
+			// Need to know the hardware type - from the "name" parameter or "hardware" variable
+			if(this.hardware == "esp8266")
+				return 0;
+
 			switch (this.name){
 				case "ArduinoCytron":
 					return 13; 
@@ -1912,7 +1994,7 @@ try{
 
 		this.getVariable = function(variable, callback) {
 		    jQuery.ajaxq(this.id, {
-		      url: this.address + '/' + variable,
+		      url: this.address + '/' + variable +'%3Fkey='+this.key,
 		      crossDomain: true
 		    }).done(function(data) {
 		      callback(data);
@@ -1930,6 +2012,37 @@ try{
 			return false
 		}
 
+
+
+		this.sendBatchCommands = function(cmds){
+			// Sends the next batch of commands
+			// Optional `cmds` arary holds the commands to send, otherwise uses `this.ioBatchCommands`
+
+console.log("sendBatchCommands",cmds);
+
+			var commands = ((cmds)? cmds : this.ioBatchCommands.slice()); // create a copy of the commands
+			this.ioBatchCommands = []; // empty the commands array (so it can be added to again)
+
+			// send up to maxCommandsPerBatch
+			var i = 0;
+			var params = "";
+
+			while(commands.length && i < this.ioMaxCommandsPerBatch){
+				var next = commands.shift();
+				if(params > "")
+					params += ":";
+				params += next[0]+","+next[1]+","+next[2]+","+next[3];
+				i++;
+			}
+
+			this.callFunction("commands",params);
+
+			// If some commands still in the array, send those.
+			if(commands.length)
+				return this.sendBatchCommands(commands);
+
+			return this;
+		};
 
 
 
@@ -2060,7 +2173,7 @@ try{
 		  		return this;
 
 		    jQuery.ajaxq(this.id, {
-				url: this.address + '/mode/' + pin + '/'+state,
+				url: this.address + '/mode/' + pin + '/'+state+'%3Fkey='+this.key,
 		    	crossDomain: true
 		    }).done(function(data) {
 				app.getDevice(data.id).pinModes[pin] = state;
@@ -2173,6 +2286,9 @@ try{
 			// update each property using values passed in
 			for(var k in props)
 				this.properties[k] = props[k]
+
+			if(props.key)
+				this.key = props.key;
 
 			if(addressChanges)
 				this.configureAddress();
