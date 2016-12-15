@@ -18,6 +18,7 @@
 	// v1.2.2 (26-10-2016) Minor changes and additions
 	// v1.2.3 (07-11-2016) Support for aREST Pro enhancements
 	// v1.2.4 (12-11-2016) Send aREST Commands - multiple pin settings in one API call, servo support
+	// v1.2.5 (15-12-2016) Tie device outputs to app variables to monitor values
 
 	// TO DO
 	// from V1.1.5 it is not working in Android native app - needs fixing.
@@ -42,6 +43,7 @@ try{
 
 	// APP Properties
 	app._appIPAddresses = [];
+	app._ajaxqURL = "https://s3-eu-west-1.amazonaws.com/staticmedia.appshed.com/files/ajaxqjs.js";
 	app._currentItemId = null;
 	app._currentScreen = null;
 	app._defaultDevice = "IOIO";
@@ -51,6 +53,7 @@ try{
 	app._ioBatchMode = true; // Send IO commands to devices in batches
 	app._ioBatchTimeout = 100; // how long to wait while collecting IO commands (e.g. from multiple Blockly commands)
 	app._ioMaxCommandsPerBatch = 4;
+	app._jqueryURL = "https://s3-eu-west-1.amazonaws.com/staticmedia.appshed.com/files/jquery-311minjs.js";
 	app._scanIPTimeout = 4000; // The timeout for requests when scanning local IP addresses.
 	app._screen_el = null;
 	app._scripts;
@@ -100,11 +103,11 @@ try{
 		if(app._scriptLoaded_jquery){
 			if(!app._scriptLoading_ajaxq){
 				app._scriptLoading_ajaxq = true;
-				app.addScript("http://appshed.us/arest/ajaxq.js")
+				app.addScript(app._ajaxqURL)
 			}
 		} else if(!app._scriptLoading_jquery){
 			app._scriptLoading_jquery = true;
-			app.addScript("http://appshed.us/arest/jquery-2.1.4.min.js")
+			app.addScript(app._jqueryURL)
 		} 
 
 		// test for jQuery and ajaxq
@@ -140,6 +143,10 @@ try{
 
 		app._devices[props.id] = device;
 
+		// If this is the first device added, make it the default
+		if(Object.keys(app._devices).length == 1){
+			app._defaultDevice = props.id;
+		}
 		return device;
 
 	  }catch(er){
@@ -401,6 +408,7 @@ try{
 		// or an object in the form
 		// * {id: xxx, [local_ip: xxx, layoutId: xxx]}
 		// If no `idOrProps` passed in, the default device is returned
+		// Optionl `key` is the aREST Pro key 
 
 		var idOrProps = idOrProps || this._defaultDevice;
 		var props = app.idOrPropsToObject(idOrProps);
@@ -409,11 +417,14 @@ try{
 		var device = app._devices[String(props.id).trim()]
 
 		if(device){
-			device.updateProperties(props)
+			// don't update properties if only id passed in (1 key)
+			if(Object.keys(props).length > 1)
+				device.updateProperties(props)
 			return device
 		}
-		else 
+		else {
 			return app.addDevice(props)
+		}
 
 	}
 
@@ -597,6 +608,36 @@ try{
 	}
 
 
+	app.getPinValue = function(pinNameOrNumber,id){
+
+		// Returns the value for pin `pinNameOrNumber` 
+		// Optional `id` to use a specific `Device`
+		// If no `id` passed in the default `Device` is used (`IOIO` is the initial default device)
+
+
+
+		var device = this.getDevice(id?id:this._defaultDevice)
+
+		// For IOIO use built in iot.setPin
+		if(device.id == "IOIO"){
+			try{
+				return window.appbuilder.events.iot.getPinValue(pinName)
+			}catch(er){this.handleError(er,"app.getPin() IOIO error")}
+
+		} else {
+			// all other devices... use Device methods
+			return device.getPinValue(pinNameOrNumber);
+		}
+	}
+
+	
+	app.togglePinValue = function(pinName){
+		window.appbuilder.events.iot.togglePinValue(pinName)
+	}
+
+
+
+
 	app.getRandomColor = function(numOfSteps, step){
 		// Returns a random color in the format `rgb(x,y,z)`. 
 		// Optional `numOfSteps` determines how many steps to separate the color spectrum into.
@@ -717,6 +758,17 @@ try{
 
 
 
+	app.sendCommands = function(cmds,id,key,callback){
+		// Sends commands `cmds` to a `Device` 
+		// Optional `id` specifies the Device ID, otherwise `_defaultDevice` is used
+		// Optional `key` specidies the Pro key
+		// Optional `callback` is called once the commands have been sent.
+		// `callback` may be called multiple times if the number of commands being sent exceeds `Device.ioMaxCommandsPerBatch`
+
+		this.getDevice(id,key).sendCommands(cmds,callback)
+
+		return this;
+	}
 
 
 	app.setDefaultDevice = function(idOrProps){
@@ -774,17 +826,17 @@ try{
 
 
 
-	app.setPin = function(pinNameOrNumber,val,id){
+	app.setPin = function(pinNameOrNumber,val,id,key){
 		// Sets the pin number `pinNameOrNumber` to `val`
 		// Optional `id` to use a specific `Device`
 		// If no `id` passed in the default `Device` is used (`IOIO` is the initial default device)
 
 
 
-		var device = this.getDevice(id?id:this._defaultDevice)
+		var device = this.getDevice((id?id:this._defaultDevice),key)
 
 		// For IOIO use built in iot.setPin
-		if(this._defaultDevice == "IOIO"){
+		if(device.id == "IOIO"){
 			try{
 				window.appbuilder.events.iot.setPin(pinNameOrNumber,val)
 			}catch(er){this.handleError(er,"app.setPin() IOIO error")}
@@ -809,7 +861,7 @@ try{
 		var device = this.getDevice(id?id:this._defaultDevice)
 
 		// For IOIO use built in iot.setPin
-		if(this._defaultDevice == "IOIO"){
+		if(device.id == "IOIO"){
 			try{
 		        window.appbuilder.events.iot.togglePinValue(pinName)
 			}catch(er){this.handleError(er,"app.togglePin() IOIO error")}
@@ -1571,8 +1623,14 @@ try{
 		this.pendingMethods = {analogRead:{},analogWrite:{},digitalRead:{},digitalWrite:{}}; // An object of objects for each of the IO methods. This holds a flag when a certain method is pending (i.e. AJAX call in process)
 		this.properties = props; // Stores the `props` passed in when the device is instantiated  
 		this.pinFormats = {};
+		this.pinNames = []; // An array of pin names (from the layout)
 		this.pinModes = {};
+		this.pinValues = {};
+		this.pinVariableTies = []; // array of arrays of variables tied to each pin
+		this.pollActive = []; // Array of booleans to indicate if a poll is active for that index/pin
+		this.pollTimeout = 1000;
 		this.remoteAddress = "";
+		this.tiePinsToVariables = false; // If true, variables in the app are tied to pins by the same name
 		this.variables = {}; // This object is passed in from the device
 
 
@@ -1592,9 +1650,9 @@ try{
 			// Set dynamic properties
 			this.id = this.properties.id;
 			this.key = this.properties.key; // Optional key for the aREST Pro account
-			this.remoteAddress = "http://cors.appshed.com/?u=https://cloud.arest.io/"+this.id;
-			if(this.key)
-				this.remoteAddress = "http://cors.appshed.com/?u=https://pro.arest.io/"+this.id;
+
+			// Update remote address
+			this.updateRemoteAddress();
 
 
 			// Update the device info using properties passed in
@@ -1616,13 +1674,11 @@ try{
 
 			// start the timeout if not already running
 			if(!this.handle_ioBatchCommands){
-console.log("Starting batch timeout, handle is ",this.handle_ioBatchCommands)				
 				var deviceId = this.id;
 
 				this.handle_ioBatchCommands = setTimeout(function(){
-					app.getDevice(deviceId).sendBatchCommands().handle_ioBatchCommands = undefined; 
+					app.getDevice(deviceId).sendCommands().handle_ioBatchCommands = undefined; 
 				},this.ioBatchTimeout);
-console.log("Started batch timeout, handle is ",this.handle_ioBatchCommands)				
 
 			}
 
@@ -1655,7 +1711,7 @@ console.log("Started batch timeout, handle is ",this.handle_ioBatchCommands)
 
 		  	this.setPinMode(pin,"i").setPinFormat(pin,"a");
 		    jQuery.ajaxq(this.id, {
-		      url: this.address + '/analog/' + pin +'%3Fkey='+this.key,
+		      url: this.address + '/analog/A' + pin +'?key='+this.key,
 		      crossDomain: true
 		    }).done(function(data) {
 		      if(callback != null) callback(data);
@@ -1744,12 +1800,14 @@ console.log("Started batch timeout, handle is ",this.handle_ioBatchCommands)
 			// Calls a function defined on the device
 
 			jQuery.ajaxq(this.id, {
-			  url: this.address + '/' + called_function + '%3Fparams=' + parameters +'%26key='+this.key,
+			  url: this.address + '/' + called_function + '?params=' + parameters +'%26key='+this.key,
 			  crossDomain: true
 			}).done(function(data) {
-			  if (callback != null) {callback(data);}
-			});
-		};
+			  if (callback != null) {callback(data)}
+			})
+
+			return this;
+		}
 
 
 
@@ -1763,12 +1821,16 @@ console.log("Started batch timeout, handle is ",this.handle_ioBatchCommands)
 		}
 
 
+
+
+
+
 		this.configureAddress = function(){
 			// Configures which address to use for calls to this device.
 			// Priority for which `address` to use is given in the following order:
 			// * `localIP`
 			// * `localIPFromRemote`
-			//  * The default cloud webservice
+			// * The default cloud webservice
 
 			if(this.variables.local_ip && this.variables.local_ip > ""){
 				if(this.isValidLocalIP)
@@ -1783,6 +1845,7 @@ console.log("Started batch timeout, handle is ",this.handle_ioBatchCommands)
 					this.testLocalIP(1); 
 			}
 			else{
+				this.updateRemoteAddress();
 				this.address = this.remoteAddress;
 				if(!this.hasTestedLocalIPFromRemote)
 					this.getLocalIPFromRemote();
@@ -1815,7 +1878,7 @@ console.log("Started batch timeout, handle is ",this.handle_ioBatchCommands)
 
 		  	this.setPinMode(pin,"i").setPinFormat(pin,"d");
 		    jQuery.ajaxq(this.id, {
-		      url: this.address + '/digital/' + pin +'%3Fkey='+this.key,
+		      url: this.address + '/digital/' + pin +'?key='+this.key,
 		      crossDomain: true
 		    }).done(function(data) {
 		      if(callback != null) callback(data);
@@ -1843,7 +1906,7 @@ console.log("Started batch timeout, handle is ",this.handle_ioBatchCommands)
 				
 
 			    jQuery.ajaxq(this.id, {
-			      url: this.address + '/digital/' + pin + '/' + state + '%3Fkey='+this.key,
+			      url: this.address + '/digital/' + pin + '/' + state + '?key='+this.key,
 			      crossDomain: true,
 			      id: this.id
 			    }).always(function(data) {
@@ -1908,8 +1971,9 @@ console.log("Started batch timeout, handle is ",this.handle_ioBatchCommands)
 			if(!address.match(/http/))
 				address = 'http://'+address;
 
+
 			jQuery.ajaxq(this.id, {
-			  url: address + '/info' +'%3Fkey='+this.key,
+			  url: address + '/info' +'?key='+this.key,
 			  crossDomain: true
 			}).done(function(data) {
 				try{app.getDevice(data.id).updateInfo(data).info = data}
@@ -1966,7 +2030,7 @@ console.log("Started batch timeout, handle is ",this.handle_ioBatchCommands)
 		this.getLocalIPFromRemote = function(){
 			// Try to get the LocalIP from the Remote address;
 
-			this.hasTestedLocalIPFromRemote = true;
+			this.hasTestedLocalIPFromRemote = true; // This is to ensure that the test is only performed once
 			var address = this.remoteAddress;
 
 			this.getInfo(function(data){
@@ -1981,6 +2045,14 @@ console.log("Started batch timeout, handle is ",this.handle_ioBatchCommands)
 		};
 
 
+		this.getPin = function(pinNameOrNumber){
+			// Redundant function 
+			// Returns `this.getPinValue()`
+
+			return this.getPinValue(pinNameOrNumber);
+		};
+
+
 		this.getPinFormat = function(pinNumber){
 			return this.pinFormats[pinNumber];
 		};
@@ -1992,9 +2064,56 @@ console.log("Started batch timeout, handle is ",this.handle_ioBatchCommands)
 
 
 
+		this.getPinValue = function(pinNameOrNumber){
+			// Returns the value of pin `pinNameOrNumber` 
+			// This function requires the pin value to be polled (regular lookup every x milliseconds)
+			// If the polling has not started, this function starts the polling loop, but a `null` value is returned
+			// The polling loop constantly updates the value
+
+
+
+
+			// presume a pin number passed in
+			
+			var pinNumber = parseInt(pinNameOrNumber)
+
+			// if pinNameOrNumber is not a pinNumber
+			if(pinNameOrNumber != pinNumber){
+				// Check to see if we are using a board Layout
+				if(this.layout){
+					// go through outputs and search for name
+					var inputs = this.layout.inputs;
+
+					for(var i=0;i<inputs.length;i++){
+						if(inputs[i].variable == pinNameOrNumber){
+							// a named pin matches, so use this pin number
+							pinNumber = inputs[i].pin;
+						}
+					}
+				} 
+			}
+
+
+			// no Layout - or invalid pinName, so check to see if it's a pin number
+			if(isNaN(pinNumber)){
+				// not a number, do nothing
+			} else {
+				// make sure this pin is being pollled
+				this.poll(pinNumber);
+
+				// return the value saved for this pin
+		 		return this.pinValues[pinNumber];
+			}
+
+			return null;
+		}
+
+
+
+
 		this.getVariable = function(variable, callback) {
 		    jQuery.ajaxq(this.id, {
-		      url: this.address + '/' + variable +'%3Fkey='+this.key,
+		      url: this.address + '/' + variable +'?key='+this.key,
 		      crossDomain: true
 		    }).done(function(data) {
 		      callback(data);
@@ -2010,18 +2129,56 @@ console.log("Started batch timeout, handle is ",this.handle_ioBatchCommands)
 
 			// If error then the key does not exist, so pending must be false because the AJAX wasn't started
 			return false
-		}
+		};
+
+
+		this.poll = function(pinNumber,timeout){
+			// Polls `pinNumber` to constantly check the value;
+			// The pin value is saved and can be accessed (after a timeout) using `this.getPinValue()`
+			// Optional `timeout` determines how long to wait before polling again
+			// Returns `this`
+
+			var deviceId = this.id;
+			var timeout = timeout || this.pollTimeout; // use the default timeout if none supplied
+
+
+			// Start polling if not currently active
+
+			if(!this.pollActive[pinNumber]){
+				this.pollActive[pinNumber] = true;
+				this.digitalRead(pinNumber, function(data){
+					var device = app.getDevice(deviceId);
+					device.pollActive[pinNumber] = false;
+					device.pinValues[pinNumber] = data.return_value;
+					device.updatedTiedVariables(pinNumber);
+
+					// poll again
+					setTimeout(function(){
+						device.poll(pinNumber);
+					},timeout)
+				})
+			}
+
+		};
 
 
 
-		this.sendBatchCommands = function(cmds){
+
+
+		this.sendCommands = function(cmds,callback){
 			// Sends the next batch of commands
 			// Optional `cmds` arary holds the commands to send, otherwise uses `this.ioBatchCommands`
+			// `cmds` expect an array of `command` arrays, where each `command` array contains 4 items: `[format,pin,value,duration]`
+			// Optional `callback` is the callback function
 
-console.log("sendBatchCommands",cmds);
 
-			var commands = ((cmds)? cmds : this.ioBatchCommands.slice()); // create a copy of the commands
-			this.ioBatchCommands = []; // empty the commands array (so it can be added to again)
+			var commands;
+			if(cmds)
+				commands = cmds;
+			else{
+				commands = this.ioBatchCommands.slice(); // create a copy of the commands
+				this.ioBatchCommands = []; // empty the commands array (so it can be added to again)
+			}
 
 			// send up to maxCommandsPerBatch
 			var i = 0;
@@ -2035,14 +2192,17 @@ console.log("sendBatchCommands",cmds);
 				i++;
 			}
 
-			this.callFunction("commands",params);
+			this.callFunction("commands",params,callback);
 
 			// If some commands still in the array, send those.
 			if(commands.length)
-				return this.sendBatchCommands(commands);
+				return this.sendCommands(commands);
 
 			return this;
 		};
+
+
+
 
 
 
@@ -2112,18 +2272,21 @@ console.log("sendBatchCommands",cmds);
 			
 			var pinNumber = parseInt(pinNameOrNumber)
 
-			// Check to see if we are using a board Layout
-			if(this.layout){
-				// go through outputs and search for name
-				var outputs = this.layout.outputs;
+			// if pinNameOrNumber is not a pinNumber
+			if(pinNameOrNumber != pinNumber){
+				// Check to see if we are using a board Layout
+				if(this.layout){
+					// go through outputs and search for name
+					var outputs = this.layout.outputs;
 
-				for(var i=0;i<outputs.length;i++){
-					if(outputs[i].variable == pinNameOrNumber){
-						// a named pin matches, so use this pin number
-						pinNumber = outputs[i].pin;
+					for(var i=0;i<outputs.length;i++){
+						if(outputs[i].variable == pinNameOrNumber){
+							// a named pin matches, so use this pin number
+							pinNumber = outputs[i].pin;
+						}
 					}
-				}
-			} 
+				} 
+			}
 
 
 			// no Layout - or invalid pinName, so check to see if it's a pin number
@@ -2172,11 +2335,20 @@ console.log("sendBatchCommands",cmds);
 		  	if(this.pinModes[pin] == state)
 		  		return this;
 
+
 		    jQuery.ajaxq(this.id, {
-				url: this.address + '/mode/' + pin + '/'+state+'%3Fkey='+this.key,
+				url: this.address + '/mode/' + pin + '/'+state+'?key='+this.key,
 		    	crossDomain: true
 		    }).done(function(data) {
-				app.getDevice(data.id).pinModes[pin] = state;
+				var device = app.getDevice(data.id)
+				device.pinModes[pin] = state;
+
+			  	// If all variables tied to pins, then tie this if input
+			  	if( device.tiePinsToVariables && state == "i"){
+			  		device.tie(pin,pin); // use the pin number as the name of the variable
+			  		device.poll(pin);
+			  	}
+
 		    });
 
 		    return this;
@@ -2222,6 +2394,81 @@ console.log("sendBatchCommands",cmds);
 
 			return this;
 		}
+
+
+
+
+
+		this.tie = function(pinNameOrNumber,variable){
+			// Ties the pin `pinNameOrNumber` to a `variable`
+			// The variable is updated every time the pin is polled
+			// Returns `this`
+
+
+			// presume a pin number passed in
+			
+			var pinNumber = parseInt(pinNameOrNumber)
+
+			// if pinNameOrNumber is not a pinNumber
+			if(pinNameOrNumber != pinNumber){
+				// Check to see if we are using a board Layout
+				if(this.layout){
+					// go through inputs and search for name
+					var inputs = this.layout.inputs;
+
+					for(var i=0;i<inputs.length;i++){
+						if(inputs[i].variable == pinNameOrNumber){
+							// a named pin matches, so use this pin number
+							pinNumber = inputs[i].pin;
+						}
+					}
+				} 
+			}
+
+
+			// no Layout - or invalid pinName, so check to see if it's a pin number
+			if(isNaN(pinNumber)){
+				// not a number, do nothing
+			} else {
+				// Check if any ties yet for this pin
+				if(!this.pinVariableTies[pinNumber])
+					this.pinVariableTies[pinNumber] = [];
+
+				// add the variable to the array of ties
+				this.pinVariableTies[pinNumber].push(variable);
+				this.poll(pinNumber);
+			}
+			return this;
+		}
+
+
+		this.tieAllPinsToVariables = function(){
+			// Ties all input pins to variables by the same name
+			// Requires a layout to be specified for the device (to determine which pins are inputs)
+			// Allows for easy moniotring of pins: simply create form fields (variables) with the same names as the pins
+			// Also allows you to name variables using the `pinNumber`, 
+			// but with multiple connected devices using `pinNumber` will cause conflicts.
+			// Returns `this`
+
+			this.tiePinsToVariables = true; // remember this setting, might need to tie later (e.g. in setPinMode())
+
+
+			if(this.layout){
+				// go through inputs 
+				var inputs = this.layout.inputs;
+
+				for(var i=0;i<inputs.length;i++){
+					this.tie(inputs[i].pin,inputs[i].variable);
+					this.poll(inputs[i].pin);
+				}
+			} 
+
+
+			return this;
+		}
+
+
+
 
 
 		this.toString = function(){
@@ -2289,6 +2536,7 @@ console.log("sendBatchCommands",cmds);
 
 			if(props.key)
 				this.key = props.key;
+			this.updateRemoteAddress();
 
 			if(addressChanges)
 				this.configureAddress();
@@ -2300,13 +2548,46 @@ console.log("sendBatchCommands",cmds);
 		};
 
 
-		  // We must call init() on the Device
-		  this.init();
+		this.updateRemoteAddress = function(){
+			this.remoteAddress = "http://cors.appshed.com/?u=https://cloud.arest.io/"+this.id;
+			if(this.key)
+				this.remoteAddress = "http://cors.appshed.com/?u=https://pro.arest.io/"+this.id;
+
+			return this;
+		}
+
+
+
+		this.updatedTiedVariables = function(pinNumber){
+			// Update all variables tied to a pin with the current value
+			// Return `this`
+
+
+			if(this.pinVariableTies[pinNumber] && this.pinVariableTies[pinNumber].length){
+				for(var i=0;i<this.pinVariableTies[pinNumber].length;i++){
+					try{
+						app.setVariable(this.pinVariableTies[pinNumber][i],this.pinValues[pinNumber])
+					}catch(er){}
+				}
+			}
+		}
+
+
+
+
+
+
+
+
+		// ************************************************************
+		// We must call init() on the Device
+		// ************************************************************
+		this.init();
 	}
 
 
 	Device.prototype.toString = function deviceToString() {
-	  var ret = 'Dog ' + this.name + ' is a ' + this.sex + ' ' + this.color + ' ' + this.breed;
+	  var ret = 'Device ' + this.id;
 	  return ret;
 	}
 
