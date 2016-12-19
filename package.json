@@ -1,0 +1,5 @@
+{
+    "name": "app.js",
+    "description": "Library that provides a variety of objects and methods for handling AppShed app, Screen, Item  and Device functionality..",
+    "main": "app.js"
+}
