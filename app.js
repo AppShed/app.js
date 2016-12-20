@@ -19,6 +19,8 @@
 	// v1.2.3 (07-11-2016) Support for aREST Pro enhancements
 	// v1.2.4 (12-11-2016) Send aREST Commands - multiple pin settings in one API call, servo support
 	// v1.2.5 (15-12-2016) Tie device outputs to app variables to monitor values
+	// v1.2.6 (20-12-2016) Event and Timer handling improvements
+
 
 	// TO DO
 	// from V1.1.5 it is not working in Android native app - needs fixing.
@@ -32,6 +34,7 @@ try{
 
 	window.app = app;
 
+	app.version = "1.2.6"; // The version number of this code
 
 
 
@@ -49,7 +52,7 @@ try{
 	app._defaultDevice = "IOIO";
 	app._devices = {};
 	app._handler_arestScriptsInterval = null;
-	app._intervals = {}; // an array of all the Intervals started for the app using app.setInterval()
+	app._intervals = {}; // an object of all the Intervals started for the app using app.setInterval()
 	app._ioBatchMode = true; // Send IO commands to devices in batches
 	app._ioBatchTimeout = 100; // how long to wait while collecting IO commands (e.g. from multiple Blockly commands)
 	app._ioMaxCommandsPerBatch = 4;
@@ -64,6 +67,10 @@ try{
 	app._scriptsLoaded_arest = false;
 	app._url_boardWithPins = 'https://iot-api.appshed.com/api/boards/withpins/';
 
+	app.isMobile_xxx; // Will be true when running on a supported mobile device (actual property is app.isMobile)
+	app.isPhoneGap_xxx; // Will be true when running on a phonegap platform (actual property is app.isPhoneGap)
+	app.mouseX;
+	app.mouseY;
 
 
 
@@ -80,6 +87,11 @@ try{
 		// add the event handlers to the `Screen` to capture `click` events
 		app.phone.addEvent('screen',function( id,el ){
 			app.addScreenClickHandlers(id,el)
+
+
+			$(document.getElementsByClassName('app')[0].id).removeEvent('mousemove', app.appMousemove);
+			$(document.getElementsByClassName('app')[0].id).addEvent('mousemove', app.appMousemove);
+
 		});
 
 
@@ -186,11 +198,54 @@ try{
 		if(app._screen_el){
 			app._screen_el.getElements('.item').removeEvent('click', app.itemClicked);
 			app._screen_el.getElements('.item').addEvent('click', app.itemClicked);
-		}
 
+		}
 
 		return this;
 	}
+
+
+
+
+
+
+	app.addScreenEvent = function(id,func){
+		// The given `func` will be called whenever the screen `id` is shown. 
+		// `id` can be the `Screen.id` or the `Screen ClassName`
+		// This function returns an `identifier`. 
+		// Within `func`, `this` will refer to the `Element` of the `Screen` that is shown. 
+		// There is one parameter `app`.
+		// Example:
+/*
+```
+app.addScreenEvent(17078, function() {
+    app.getScreen(this).setBackgroundColor("Blue")
+});
+```
+*/
+
+
+		var f=function(eid,screen){
+		
+			// If a Class Name passed in, test for that and get the id
+			if(isNaN(id) && screen.classList.contains(id))
+				id = app.getIdFromDOMId(screen.id);
+
+
+			if(id==eid){
+				appbuilder.app.debug("api","screenEvent",id);
+				try{
+					func.call(screen,this)
+				}catch(e){
+					appbuilder.app.debug("api","Error with custom js on screen event",e)
+				}
+			}
+		}.bind(this);
+		
+		return this.phone.addEvent("screen",f)
+
+	}
+
 
 
 
@@ -213,6 +268,59 @@ try{
 
 
 
+
+	app.addTabEvent = function(id,func){
+		// The given `func` will be called whenever the Tab `id` is shown. 
+		// `id` can be the `Tab.id` or the `Tab ClassName`
+		// The given `func` will be called whenever the Tab `id` is shown. 
+		// This function returns an `identifier`. 
+		// Within `func`, `this` will refer to the `Element` of the `Tab` that is shown. 
+		// There is one parameter `app`.
+
+		var f=function(eid,tab){
+
+			// If a Class Name passed in, test for that and get the id
+			if(isNaN(id) && tab.classList.contains(id))
+				id = app.getIdFromDOMId(tab.id);
+
+			if(id==eid){
+				appbuilder.app.debug("api","tabEvent",id);
+				try{
+					//func.call(tab,this)
+					// Call func after timeout to give time for DOM to load new Screen 
+					setTimeout(function(){
+						func.call(tab,app)
+					},10)
+				}catch(e){
+					appbuilder.app.debug("api","Error with custom js on tab event",e)
+				}
+			}
+		}.bind(this);
+		
+		return this.phone.addEvent("tab",f),f
+	}
+
+
+	app.addVariableEvent_xxx = function(id, func){
+		// The given `func` will be called whenever the `Variable` `id` is changed. 
+		// This function returns an `identifier`. 
+		// Within `func`, `this` will refer to the `Element` of the `Tab` that is shown. 
+		// There are two parameters: `val` and `app`.
+
+/*
+```
+app.addVariableEvent('textbox', function(val) {
+    var t = document.getElement('#screen17078 .title span');
+    if(t) {
+        t.set('text', val);
+    }
+});
+```
+*/
+
+	}
+
+
 	app.alertPinValue = function(idOrProps,pin,format){
 		// Shows a screen alert message with the value of the pin for the device `idOrProps`.
 		// Optional `format` can be `a` (for analog) or `d` (for digital) value (Default: `d`)
@@ -223,6 +331,13 @@ try{
 
 		return this;
 	}
+
+
+	app.appMousemove = function(e){
+		app.mouseX = e.event.clientX;
+		app.mouseY = e.event.clientY;
+	}
+
 
 
 
@@ -273,14 +388,35 @@ try{
 
 	app.clearInterval = function(identifierOrName){
 		// Clears the interval identified by `identifierOrName`
-		// `identifierOrName` can be the `identifier` of the interval, or a `name` supplied by `app.setInterval()`
+		// Optional `identifierOrName` can be the `identifier` of the interval, or a `name` supplied by `app.setInterval()`
+		// If no  `identifierOrName` then all Intervals are cleared
+		// Returns `this`
 
-		// try clear the interval using both forms
 		try{
-			window.clearInterval(identifierOrName)
-			window.clearInterval(this._intervals[identifierOrName])
+			// if no identifierOrName, clear all Intervals
+			if(identifierOrName){
+				// try clear the interval using both forms
+				window.clearInterval(identifierOrName)
+				window.clearInterval(this._intervals[identifierOrName])
+
+				// Delete the property from _intervals
+				delete this._intervals[identifierOrName];
+			}else{
+				var keys = Object.keys(this._intervals);
+				for(var i=0;i<keys.length;i++){
+					window.clearInterval(this._intervals[keys[i]]);
+
+					// Delete the property from _intervals
+					delete this._intervals[keys[i]];
+				}
+			}
+
+
 		}catch(er){
+			app.handleError(er,"app.clearInterval()")	
 		}
+
+		return this;
 
 	}
 
@@ -529,24 +665,38 @@ try{
 
 
 
-	app.getItem = function(id){
-		// Returns an `Item` object for `id`
-		// If no `id` supplied it returns the `Current Item` (last item clicked)
+	app.getItem = function(idOrClassName,element){
+		// Returns an `Item` object for `idOrClassName`
+		// If no `idOrClassName` supplied it returns the `Current Item` (last item clicked)
+		// `idOrClassName` can be the `ItemId` or the `ClassName` set in `Custom Classes`
+		// If multiple items have the same `ClassName`, the first item is returned
+		// Optional `element` is assinged to the `Item.element` property
 
-		if(!id && app._currentItemId)
-			id = app._currentItemId;
+		if(!idOrClassName && app._currentItemId)
+			idOrClassName = app._currentItemId;
 
 		try{
 
-			var item = new app.Item(id)
-			//item.init()
-			return item;
+			var item = new app.Item(idOrClassName)
+
+			if(element)
+				item.element = element;
+
+
+			// if no element, try getting the item by ClassName
+			if(item.element == null)
+				item = app.getItemByClassName(idOrClassName)
+
+			// If still no element, there is no item
+			if(item.element == null)
+				return null;
+			else
+				return item;
+
 
 		}catch(er){
-			app.handleError(er,"app.getItem("+id+")")
+			app.handleError(er,"app.getItem("+idOrClassName+")")
 		}
-
-
 	}
 
 
@@ -580,9 +730,11 @@ try{
 	}
 
 
-	app.getItemByDomId = function(domId){
+	app.getItemByDomId = function(domId,element){
+		// Returns an `Item` object for `domId` which is the `id` of the `Element` in the `DOM Tree`
+		// Optional `element` is the `DOM Element`
 
-		return app.getItem(parseInt(String(domId).replace(/[a-z]/g,"")))
+		return app.getItem(parseInt(String(domId).replace(/[a-z]/g,"")),element)
 
 	}
 
@@ -630,12 +782,10 @@ try{
 		}
 	}
 
+
+
+
 	
-	app.togglePinValue = function(pinName){
-		window.appbuilder.events.iot.togglePinValue(pinName)
-	}
-
-
 
 
 	app.getRandomColor = function(numOfSteps, step){
@@ -693,11 +843,25 @@ try{
 
 		try{
 
+			var element;
+
 			if(!id){
 				id = String(document.querySelector('.screen').id).replace(/screen/,'')
 			}
 
-			return new app.Screen(id)		
+			// Special Case: id is the DOM Element of the screen
+			// then the DomID will be in the format "screen123"
+			// This happens if app.addScreenEvent() passes `this` to app.getScreen()
+			if((typeof id === "object" && id.id && id.id.match(/screen/))){
+				element = id;
+				id = element.id.replace(/screen/,'')
+			}
+
+			var aScreen = new app.Screen(id);
+			if(element)
+				aScreen.element = element;
+
+			return aScreen;		
 
 		}catch(er){
 			app.handleError(er,"app.getScreen("+id+")")
@@ -705,6 +869,18 @@ try{
 
 
 	}
+
+
+
+
+	app.getVariable_xxx = function(name){
+		// Returns the value of a form variable with the given `name`.
+		// [NOTE: the method name is getVariable without _xxx and it already exists in the built-in JavaScript library. 
+		//   It is included here for documentation purposes only.]
+
+
+	}
+
 
 
 	app.handleError = function(er,msg){
@@ -738,10 +914,11 @@ try{
 		// Saves the `_currentItemId` when `Element` `e` is clicked.
 		// Returns `this`
 
+
 		if(e.target.classList.contains('item'))
 			app._currentItemId = app.getIdFromDOMId(e.target.id)
 		if(e.target.parentElement.classList.contains('item'))
-			app._currentScreenentItemId = app.getIdFromDOMId(e.target.parentElement.id)
+			app._currentItemId = app.getIdFromDOMId(e.target.parentElement.id)
 		if(e.target.parentElement.parentElement.classList.contains('item'))
 			app._currentItemId = app.getIdFromDOMId(e.target.parentElement.parentElement.id)
 
@@ -758,6 +935,29 @@ try{
 
 
 
+	app.removeScreenEvent_xxx = function(identifier){
+		// Stops a `Screen` event from being called when a screen loads
+		// `identifier` is the return value of `app.addScreenEvent()` 
+
+	}
+
+
+	app.removeTabEvent_xxx = function(identifier){
+		// Stops a `Tab` event from being called when a screen loads
+		// `identifier` is the return value of `app.addTabEvent()` 
+
+	}
+
+
+	app.removeVariableEvent_xxx = function(identifier){
+		// Stops a `Variable` event from being called when a variable value changes
+		// `identifier` is the return value of `app.addVariableEvent()` 
+
+	}
+
+
+
+
 	app.sendCommands = function(cmds,id,key,callback){
 		// Sends commands `cmds` to a `Device` 
 		// Optional `id` specifies the Device ID, otherwise `_defaultDevice` is used
@@ -769,6 +969,26 @@ try{
 
 		return this;
 	}
+
+
+
+	app.setBackgroundColor = function(color){
+		// Set the `BackgroundColor` of the current screen to `color`
+		// Returns `this`
+		app.getScreen().setBackgroundColor(color);
+
+		return this;
+	}
+
+
+	app.setBackgroundImage = function(src,method){
+		// Set the `BackgroundIamge` of the current screen to `src` 
+		// Optional `method` determines the layout
+		// Returns `this`
+
+		app.getScreen().setBackgroundImage(src,method);
+	}
+
 
 
 	app.setDefaultDevice = function(idOrProps){
@@ -850,6 +1070,38 @@ try{
 
 	}
 
+
+
+	app.setVariable_xxx = function(name, value){
+		// Set the value of the variable `name` to `value`.
+		// [NOTE: the method name is setVariable without _xxx and it already exists in the built-in JavaScript library. 
+		//   It is included here for documentation purposes only.]
+	}
+
+
+
+	app.showRemoteScreen_xxx = function(url){
+		// The app will navigate to a remote screen that is loaded from `url`. 
+		// `url` can contain parameters in the form `{name}` that will be replaced with the value of a form `variable` with the given `name`.
+		// For example url = `https://mydomain.com/myscript.php?FirstName=[myName]`
+		//   This requires a form `variable` in your app with the Name `myName`
+		// [NOTE: the method name is showRemoteScreen without _xxx and it already exists in the built-in JavaScript library. 
+		//   It is included here for documentation purposes only.]
+
+	}
+
+
+	app.showScreen_xxx = function(id){
+		// The app will navigate the screen with `id`
+		// [NOTE: the method name is showScreen without _xxx and it already exists in the built-in JavaScript library. 
+		//   It is included here for documentation purposes only.]
+	} 
+
+	app.showTab_xxx = function(id){
+		// The app will navigate the tab with `id`
+		// [NOTE: the method name is showTab without _xxx and it already exists in the built-in JavaScript library. 
+		//   It is included here for documentation purposes only.]
+	}
 
 
 	app.togglePin = function(pinNameOrNumber,val,id){
@@ -968,6 +1220,47 @@ try{
 		}
 
 
+
+		this.getSubTitle = function(str){
+			//Returns the `Subtitle` of the item
+
+			try{
+				return app.findClass(this.element,"text").innerText;
+			}catch(er){
+				app.handleError(er,"Item.getSubTitle()")
+			}
+			return null;
+		}
+
+
+		this.getText = function(str){
+			//Returns the `Text` of the item
+
+			try{
+				return app.findClass(this.element,"text").innerText;
+			}catch(er){
+				// the text might be in a 'html' class
+				try{
+					return app.findClass(this.element,"html").innerText;
+				}catch(er2){
+					app.handleError(er+", "+er2,"Item.getText()")
+				}
+			}
+			return null;
+		}
+
+
+		this.getTitle = function(str){
+			//Returns the `Title` of the item
+
+			try{
+				return app.findClass(this.element,"title").innerText;
+			}catch(er){
+				app.handleError(er,"Item.getText()")
+			}
+			return null;
+		}
+
 		this.isAbove = function(otherId){
 			// returns true this item is above the other Item
 			try{
@@ -1029,6 +1322,40 @@ try{
 			return this;
 		}
 
+		this.setBackgroundImage = function(src,method){
+			// Sets the `backgroundImage` of this `Item` to `src`. 
+			// Optional `method` determines the layout
+			// One of: `fit` | `fill` | `stretch` | `center` | `tile`
+			// `method` defaults to `fit` 
+
+			if(!method)
+				method = 'fill'
+
+			var items = this.element;
+
+			items.style.backgroundImage = "url('"+src+"')";
+			items.style.backgroundRepeat = "no-repeat";
+			items.style.backgroundPosition = "center center";
+
+			if(method == 'fill')
+				items.style.backgroundSize = "cover";
+			else if(method == 'stretch')
+				items.style.backgroundSize = "100% 100%";
+			else if(method == 'center')
+				items.style.backgroundSize = items.style.height+"px "+items.style.width+"px";
+			else if(method == 'tile'){
+				items.style.backgroundSize = items.style.height+"px "+items.style.width+"px";
+				items.style.backgroundRepeat = "repeat";
+			}
+			else
+				items.style.backgroundSize = "contain";
+
+
+			return this
+		}
+
+
+
 		this.setHTML = function(str){
 			//set the value of Html to `str`
 			try{
@@ -1042,6 +1369,25 @@ try{
 			app.findClass(this.element,"image").src = src
 			return this
 		}
+
+		this.setSubTitle = function(str){
+			//set the value of Sub Title to `str`
+			app.findClass(this.element,"text").innerHTML = str
+			return this;
+		}
+
+
+		this.setSubTitleColor = function(color){
+			//set the color of SubTitle to `color`
+			try{
+				app.findClass(this.element,"text").style.color = color
+			}catch(er){
+				app.handleError(er,"Item.setSubTitleColor()")
+			}
+
+			return this;
+		}
+
 
 		this.setText = function(str){
 			//set the value of Text to `str`
@@ -1082,15 +1428,9 @@ try{
 			try{
 				app.findClass(this.element,"title").style.color = color
 			}catch(er){
-				app.handleError(er,"Item.setTitleColor()")
+				app.handleError(er,"Item.setTitleColor()");
 			}
 
-			return this;
-		}
-
-		this.setSubTitle = function(str){
-			//set the value of Sub Title to `str`
-			app.findClass(this.element,"text").innerHTML = str
 			return this;
 		}
 
@@ -1098,7 +1438,9 @@ try{
 			//set the value of Title to `str`
 			try{
 				app.findClass(this.element,"title").innerHTML = str
-			}catch(er){app.handleError(er,"Item.setTitle()")}
+			}catch(er){
+				app.handleError(er,"Item.setTitle()")
+			}
 			return this;
 		}
 
@@ -1407,8 +1749,11 @@ try{
 			var elements = this.element.getElementsByClassName("item")
 
 			for (var i = 0; i < elements.length; i++) {
-				var item = app.getItemByDomId(elements[i].id)
-				this.items[item.id] = item ;
+				// ignore new-item-placeholder
+				if(!elements[i].classList.contains("new-item-placeholder")){
+					var item = app.getItemByDomId(elements[i].id,elements[i])
+					this.items[item.id] = item ;
+				}
 			}
 
 			
@@ -1456,6 +1801,17 @@ try{
 		}
 
 
+
+		this.getTitle = function(str){
+			// Returns the `Title` of the screen
+
+			var header = app.findClass(this.element,"header")
+			return app.findClass(header,"title").innerText;
+		}
+
+
+
+
 		this.getType = function(){
 			// Returns the type of `Screen` (`list`,`icon`,`gallery`,`map`)
 
@@ -1489,6 +1845,7 @@ try{
 
 
 
+
 		this.setBackgroundImage = function(src,method){
 			// Sets the `backgroundImage` of this `Screen` to `src`. 
 			// Optional `method` determines the layout
@@ -1496,7 +1853,7 @@ try{
 			// `method` defaults to `fit` 
 
 			if(!method)
-				method = 'fit'
+				method = 'fill'
 
 			var items = app.findClass(this.element,"items")
 		
