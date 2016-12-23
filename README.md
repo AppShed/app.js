@@ -2,7 +2,6 @@
 
 JavaScript objects to handle app customisation and modification of items within AppShed.
 
-[Latest Documentation](https://doxdox.org/AppShed/app.js)
 
   - Change the text and image values of items
   - Move and remove items from the screen
