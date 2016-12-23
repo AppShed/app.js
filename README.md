@@ -161,5 +161,10 @@ This is a top-level class representing a Screen. In AppShed there are four main 
  * v1.1.6 (02-07-2016) Support for IoT Board layouts
  * v1.1.7 (23-07-2016) Support for built-in LED, simpler device calling, stability improvements
  * v1.1.8 (10-08-2016) Support for findLocalDevices, blink LED
-
-
+ * v1.2.1 (06-10-2016) aREST Pro support added. aREST local-and-cloud not supported
+ * v1.2.2 (26-10-2016) Minor changes and additions
+ * v1.2.3 (07-11-2016) Support for aREST Pro enhancements
+ * v1.2.4 (12-11-2016) Send aREST Commands - multiple pin settings in one API call, servo support
+ * v1.2.5 (15-12-2016) Tie device outputs to app variables to monitor values
+ * v1.2.6 (20-12-2016) Event and Timer handling improvements
+ * v1.2.7 (23-12-2016) Support for single device operating a softAP (Access Point)
