@@ -20,7 +20,7 @@
 	// v1.2.4 (12-11-2016) Send aREST Commands - multiple pin settings in one API call, servo support
 	// v1.2.5 (15-12-2016) Tie device outputs to app variables to monitor values
 	// v1.2.6 (20-12-2016) Event and Timer handling improvements
-
+	// v1.2.7 (23-12-2016) Support for single device operating a softAP (Access Point)
 
 	// TO DO
 	// from V1.1.5 it is not working in Android native app - needs fixing.
@@ -34,7 +34,7 @@ try{
 
 	window.app = app;
 
-	app.version = "1.2.6"; // The version number of this code
+	app.version = "1.2.7"; // The version number of this code
 
 
 
@@ -49,7 +49,7 @@ try{
 	app._ajaxqURL = "https://s3-eu-west-1.amazonaws.com/staticmedia.appshed.com/files/ajaxqjs.js";
 	app._currentItemId = null;
 	app._currentScreen = null;
-	app._defaultDevice = "IOIO";
+	app._defaultDevice = null;
 	app._devices = {};
 	app._handler_arestScriptsInterval = null;
 	app._intervals = {}; // an object of all the Intervals started for the app using app.setInterval()
@@ -382,7 +382,7 @@ app.addVariableEvent('textbox', function(val) {
 		// Returns `this`
 
 		this._devices = {};
-		this._defaultDevice = "";
+		this._defaultDevice = null;
 		return this;
 	}
 
@@ -548,17 +548,26 @@ app.addVariableEvent('textbox', function(val) {
 
 		var idOrProps = idOrProps || this._defaultDevice;
 		var props = app.idOrPropsToObject(idOrProps);
-		if(key)
+
+		// special case local - if device is running softAP (local Access Point)
+		// If no id, and no _defaultDevice, default to `local`
+		if(props.id == ""){
+			props.id = "local";
+			this._defaultDevice = "local";
+		}
+
+
+		if(key && key > "")
 			props.key = key;
 		var device = app._devices[String(props.id).trim()]
+
 
 		if(device){
 			// don't update properties if only id passed in (1 key)
 			if(Object.keys(props).length > 1)
 				device.updateProperties(props)
 			return device
-		}
-		else {
+		} else {
 			return app.addDevice(props)
 		}
 
@@ -2185,11 +2194,15 @@ app.addVariableEvent('textbox', function(val) {
 		this.configureAddress = function(){
 			// Configures which address to use for calls to this device.
 			// Priority for which `address` to use is given in the following order:
+			// * `192.168.4.1` for `local` deviceID when using softAP
 			// * `localIP`
 			// * `localIPFromRemote`
 			// * The default cloud webservice
 
-			if(this.variables.local_ip && this.variables.local_ip > ""){
+			if(this.id == "local"){
+				this.address = "http://192.168.4.1";
+			}
+			else if(this.variables.local_ip && this.variables.local_ip > ""){
 				if(this.isValidLocalIP)
 					this.address = "http://"+this.variables.local_ip;
 				else 
