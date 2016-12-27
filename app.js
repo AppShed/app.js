@@ -20,7 +20,9 @@
 	// v1.2.4 (12-11-2016) Send aREST Commands - multiple pin settings in one API call, servo support
 	// v1.2.5 (15-12-2016) Tie device outputs to app variables to monitor values
 	// v1.2.6 (20-12-2016) Event and Timer handling improvements
-	// v1.2.7 (23-12-2016) Support for single device operating a softAP (Access Point)
+	// v1.2.7 (23-12-2016) Support for single device running a softAP (Access Point)
+	// v1.2.8 (26-12-2016) Touch position, touchX, touchY, touchAngle etc.
+
 
 	// TO DO
 	// from V1.1.5 it is not working in Android native app - needs fixing.
@@ -34,7 +36,7 @@ try{
 
 	window.app = app;
 
-	app.version = "1.2.7"; // The version number of this code
+	app.version = "1.2.8"; // The version number of this code
 
 
 
@@ -45,10 +47,13 @@ try{
 
 
 	// APP Properties
+	app._actions = {}; // an object holding actions for each item. Each `key` is `idOrClassName`. Each value is an `Array`, allowing multiple actions to be stored for each `Item`
 	app._appIPAddresses = [];
 	app._ajaxqURL = "https://s3-eu-west-1.amazonaws.com/staticmedia.appshed.com/files/ajaxqjs.js";
 	app._currentItemId = null;
 	app._currentScreen = null;
+	app._currentHoverElement; // The DOM `Element` that is currently hovered over
+	this._currentHoverItem; // The `Item` Object currently hovered over
 	app._defaultDevice = null;
 	app._devices = {};
 	app._handler_arestScriptsInterval = null;
@@ -56,6 +61,8 @@ try{
 	app._ioBatchMode = true; // Send IO commands to devices in batches
 	app._ioBatchTimeout = 100; // how long to wait while collecting IO commands (e.g. from multiple Blockly commands)
 	app._ioMaxCommandsPerBatch = 4;
+	app._isActiveTouchmove = false;
+	app._items = {}; // Object to hold `Item` objects;
 	app._jqueryURL = "https://s3-eu-west-1.amazonaws.com/staticmedia.appshed.com/files/jquery-311minjs.js";
 	app._scanIPTimeout = 4000; // The timeout for requests when scanning local IP addresses.
 	app._screen_el = null;
@@ -69,8 +76,12 @@ try{
 
 	app.isMobile_xxx; // Will be true when running on a supported mobile device (actual property is app.isMobile)
 	app.isPhoneGap_xxx; // Will be true when running on a phonegap platform (actual property is app.isPhoneGap)
-	app.mouseX;
-	app.mouseY;
+	app.isTouching = false;
+	app.touchStartX = 100; // The x coordinate of the touchStart point
+	app.touchStartY = 100; // The y coordinate of the touchStart point
+	app.touchX = 100; // The x coordinate of the current touch point
+	app.touchY = 100; // The y coordinate of the current touch point
+	app.touchAngle = 0; // The angle in degrees of the current touch point relative to touchStart
 
 
 
@@ -84,19 +95,69 @@ try{
 		if(app._REQUIREARESTSCRIPTS)
 			app.setInterval(app.addARESTScripts(),1000,10000)
 
+			$(document.getElementsByClassName('app')[0].id).removeEvent('touchstart', app.onTouchstart);
+			$(document.getElementsByClassName('app')[0].id).removeEvent('mousedown', app.onTouchstart);
+			$(document.getElementsByClassName('app')[0].id).addEvent('touchstart', app.onTouchstart);
+			$(document.getElementsByClassName('app')[0].id).addEvent('mousedown', app.onTouchstart);
+
+			$(document.getElementsByClassName('app')[0].id).removeEvent('touchmove', app.onTouchmove);
+			$(document.getElementsByClassName('app')[0].id).removeEvent('mousemove', app.onTouchmove);
+			$(document.getElementsByClassName('app')[0].id).addEvent('touchmove', app.onTouchmove);
+			$(document.getElementsByClassName('app')[0].id).addEvent('mousemove', app.onTouchmove);
+
+			$(document.getElementsByClassName('app')[0].id).removeEvent('touchend', app.onTouchend);
+			$(document.getElementsByClassName('app')[0].id).removeEvent('mouseup', app.onTouchend);
+			$(document.getElementsByClassName('app')[0].id).addEvent('touchend', app.onTouchend);
+			$(document.getElementsByClassName('app')[0].id).addEvent('mouseup', app.onTouchend);
+
+
 		// add the event handlers to the `Screen` to capture `click` events
 		app.phone.addEvent('screen',function( id,el ){
 			app.addScreenClickHandlers(id,el)
-
-
-			$(document.getElementsByClassName('app')[0].id).removeEvent('mousemove', app.appMousemove);
-			$(document.getElementsByClassName('app')[0].id).addEvent('mousemove', app.appMousemove);
 
 		});
 
 
 	}
 
+
+
+
+
+
+	app.addActions = function(arr){
+		// Adds actions to `Items`
+		// `arr` is an `Array` of `descriptors` in the format:
+		// `arr = [  
+		//    { idOrClassName: "" , actionType: "", handler: [ad-hoc function] }
+		// ]`
+		//
+		// `idOrClassName` - this can be the `itemId`, the `DOM id` or a `Classname` for the item
+		
+		for(i=0;i<arr.length;i++){
+			app.addAction(arr[i].idOrClassName,arr[i].handler);
+		}
+
+		console.log("ACTIONS",app._actions);
+		
+		return this;
+	}
+
+
+	app.addAction = function(idOrClassName,handler){
+		// Adds an action `handler` for `idOrClassName`
+		// Multiple actions can be added for each `idOrClassName`
+		
+		// See if `_actions` is instantitated for this idOrClassName
+		if(!this._actions[idOrClassName])
+			this._actions[idOrClassName] = [];
+		
+		// Add this to the array of actions
+		this._actions[idOrClassName].push(handler)
+		
+		   
+		return this;
+	}
 
 
 
@@ -169,6 +230,31 @@ try{
 
 
 
+	app.addHoverImages = function(imageArray){
+		// Adds multiple images that appear when the user hovers over the `Item` 
+		// Works with touch and mouse events
+		// `imageArray` is an array in the format 
+		//    `[  idOrClassName1, imageURL1, idOrClassName2, imageURL2, ... ]`
+		// Returns `this`
+
+		for(var i=0;i<imageArray.length;i+=2){
+			var thisItem = this.getItem(imageArray[i]);
+
+
+			if(thisItem && thisItem.element){
+
+				// Make sure originalImage is saved
+				if(!thisItem.originalImage)
+					thisItem.originalImage = thisItem.getImage();
+				
+				thisItem.hoverImage = imageArray[i+1];
+			}
+		}
+
+		return this;
+	}
+
+
 	app.addInterval = function(identifier,name){
 		// Adds an interval handler `identifier` to the `_intervals`, 
 		//returns `identifier`
@@ -196,8 +282,8 @@ try{
 			app._screen_el = el;
 
 		if(app._screen_el){
-			app._screen_el.getElements('.item').removeEvent('click', app.itemClicked);
-			app._screen_el.getElements('.item').addEvent('click', app.itemClicked);
+			app._screen_el.getElements('.item').removeEvent('click', app.onItemClicked);
+			app._screen_el.getElements('.item').addEvent('click', app.onItemClicked);
 
 		}
 
@@ -216,13 +302,13 @@ try{
 		// Within `func`, `this` will refer to the `Element` of the `Screen` that is shown. 
 		// There is one parameter `app`.
 		// Example:
-/*
-```
-app.addScreenEvent(17078, function() {
-    app.getScreen(this).setBackgroundColor("Blue")
-});
-```
-*/
+		/*
+		```
+		app.addScreenEvent(17078, function() {
+		    app.getScreen(this).setBackgroundColor("Blue")
+		});
+		```
+		*/
 
 
 		var f=function(eid,screen){
@@ -332,11 +418,6 @@ app.addVariableEvent('textbox', function(val) {
 		return this;
 	}
 
-
-	app.appMousemove = function(e){
-		app.mouseX = e.event.clientX;
-		app.mouseY = e.event.clientY;
-	}
 
 
 
@@ -538,6 +619,36 @@ app.addVariableEvent('textbox', function(val) {
 	}
 
 
+
+	app.findParentItem = function(element){
+		// Returns the `Item` containing the DOM `element`
+		// This traverses up each `parentElement` 
+		// If it finds an `Item` it returns the `Item` object
+		
+		try{
+			if(element && element.classList){
+				if(element.classList.contains("item"))
+					return app.getItem(element.id)
+				
+				// if we reach the 'screen' element, return 
+				if(element.classList.contains("screen"))
+					return null;				
+
+				// call this method on the parent
+				return app.findParentItem(element.parentElement)
+
+			}
+				
+			
+		}catch(er){
+			app.handleError(er,"app.findParentItem()")
+		}
+
+		return null;
+	}
+
+
+
 	app.getDevice = function(idOrProps,key){
 		// Returns the device for `idOrProps`
 		// `idOrProps` can be a `deviceId` (a ten character string) 
@@ -551,7 +662,7 @@ app.addVariableEvent('textbox', function(val) {
 
 		// special case local - if device is running softAP (local Access Point)
 		// If no id, and no _defaultDevice, default to `local`
-		if(props.id == ""){
+		if(!props.id || props.id == ""){
 			props.id = "local";
 			this._defaultDevice = "local";
 		}
@@ -601,7 +712,7 @@ app.addVariableEvent('textbox', function(val) {
 	        //NOTE: you need to have an iframe in the page right above the script tag
 	        //
 	        //<iframe id="iframe" sandbox="allow-same-origin" style="display: none"></iframe>
-	        //<script>...getIPs called in here...
+	        //<screenipt>...getIPs called in here...
 	        
 	        var win = iframe.contentWindow;
 	        RTCPeerConnection = win.RTCPeerConnection
@@ -677,34 +788,44 @@ app.addVariableEvent('textbox', function(val) {
 	app.getItem = function(idOrClassName,element){
 		// Returns an `Item` object for `idOrClassName`
 		// If no `idOrClassName` supplied it returns the `Current Item` (last item clicked)
-		// `idOrClassName` can be the `ItemId` or the `ClassName` set in `Custom Classes`
+		// `idOrClassName` can be the `ItemId` or the `ClassName` set in `Custom Classes`, or the DOM id of the item
 		// If multiple items have the same `ClassName`, the first item is returned
 		// Optional `element` is assinged to the `Item.element` property
 
-		if(!idOrClassName && app._currentItemId)
-			idOrClassName = app._currentItemId;
+		if(!idOrClassName && this._currentItemId)
+			idOrClassName = this._currentItemId;
+
+		var testId = this.getIdFromDOMId(idOrClassName)
 
 		try{
 
-			var item = new app.Item(idOrClassName)
+			if(this._items[testId]){
+				// MUST reload the `element` otherwise it references old stuff
+				this._items[testId].element = document.getElementById(this._items[testId].domId)
+				return this._items[testId];
+			}
+
+			var item = new this.Item(testId)
 
 			if(element)
 				item.element = element;
 
-
 			// if no element, try getting the item by ClassName
 			if(item.element == null)
-				item = app.getItemByClassName(idOrClassName)
+				item = this.getItemByClassName(idOrClassName)
 
 			// If still no element, there is no item
-			if(item.element == null)
+			if(!item || item.element == null){
 				return null;
-			else
+			}
+			else{
+				this._items[item.id] = item;
 				return item;
+			}
 
 
 		}catch(er){
-			app.handleError(er,"app.getItem("+idOrClassName+")")
+			this.handleError(er,"app.getItem("+idOrClassName+")")
 		}
 	}
 
@@ -733,6 +854,7 @@ app.addVariableEvent('textbox', function(val) {
 	app.getItemByClassName = function(name){
 
 		var elements = document.getElementsByClassName(name);
+
 		if(elements && elements.length && elements[0].id.match(/item/))
 			return this.getItemByDomId(elements[0].id)
 
@@ -893,7 +1015,7 @@ app.addVariableEvent('textbox', function(val) {
 
 
 	app.handleError = function(er,msg){
-		// Handles errors. Logs `er` and `msg` to the console.
+		// Handles errors. Logs `er` and `msg` 
 
 		var msg = msg || ""
 		console.log("ERROR: ",er,msg)
@@ -905,11 +1027,11 @@ app.addVariableEvent('textbox', function(val) {
 	app.idOrPropsToObject = function(idOrProps){
 		// Returns an `object` using `idOrProps`
 
-		var props = {};
+		var props = {id: null};
 
-		if (typeof idOrProps === "object")
+		if (idOrProps && typeof idOrProps === "object")
 			props = idOrProps;
-		else
+		else if(idOrProps)
 			props.id = String(idOrProps).trim();
 
 		return props;
@@ -919,7 +1041,7 @@ app.addVariableEvent('textbox', function(val) {
 
 
 
-	app.itemClicked = function(e){
+	app.onItemClicked = function(e){
 		// Saves the `_currentItemId` when `Element` `e` is clicked.
 		// Returns `this`
 
@@ -931,9 +1053,91 @@ app.addVariableEvent('textbox', function(val) {
 		if(e.target.parentElement.parentElement.classList.contains('item'))
 			app._currentItemId = app.getIdFromDOMId(e.target.parentElement.parentElement.id)
 
-		return this;
+		return app;
 			
 	}
+
+
+
+
+	app.onTouchend = function(e){
+		// Event handler for the `touchend` and `mouseup` events
+
+		app.isTouching = false;	
+	}		
+
+
+	app.onTouchmove = function(e){
+		// Event handler when touch or mouse moves
+
+		// Avoid calling this method if it is currently executing
+		if(app._isActiveTouchmove)
+			return;
+
+		app._isActiveTouchmove = true;
+
+
+		var ident = Math.random();
+
+		// Event handler for the `touchmove` and `mousemove` events
+		var touchobj = ((e.event.changedTouches) ? e.event.changedTouches[0] : e.event) // reference first touch point for this event
+		app.touchX = touchobj.clientX;
+		app.touchY = touchobj.clientY;	
+
+		// Get the touchAngle
+		app.touchAngle = Math.atan2(app.touchY - app.touchStartY, app.touchX - app.touchStartX) * 180 / Math.PI;
+		// make angle 0-360, not negatives.
+		if(app.touchAngle < 0)
+			app.touchAngle = 360 + app.touchAngle;
+		
+
+		// see if hovering over item
+		// Get the Element below the current point
+		var thisHoverElement = document.elementFromPoint(touchobj.clientX, touchobj.clientY)
+		var thisHoverItem = app.findParentItem(thisHoverElement)
+
+		// Is it a new Element
+		if(!app._currentHoverItem || (thisHoverItem && thisHoverItem.id != app._currentHoverItem.id)){
+			var oldHoverItem = app._currentHoverItem;
+
+			// Save this as the current Element and Item
+			app._currentHoverElement = thisHoverElement;
+			app._currentHoverItem = thisHoverItem;
+
+
+			// reset the hover image on oldHoverItem if it has a hover image
+			if(oldHoverItem && oldHoverItem.hoverImage && oldHoverItem.originalImage)
+				oldHoverItem.setImage(oldHoverItem.originalImage)
+
+
+			// set the new hover image if required
+			if(app._currentHoverItem && app._currentHoverItem.hoverImage){
+				app._currentHoverItem.setImage(app._currentHoverItem.hoverImage)
+			}
+
+			// call actions for this `Item`
+			if(app._currentHoverItem && app._currentHoverItem.callActions)
+				app._currentHoverItem.callActions();
+		}
+
+		//        e.preventDefault()
+		app._isActiveTouchmove = false;
+
+	}
+
+
+	app.onTouchstart = function(e){
+		// Event handler for the `touchstart` and `mousedown` events
+
+		app._isTouching = true;	
+		var touchobj = ((e.event.changedTouches) ? e.event.changedTouches[0] : e.event) // reference first touch point for this event
+		app.touchStartX = touchobj.clientX;
+		app.touchStartY = touchobj.clientY;	
+		app.touchX = touchobj.clientX;
+		app.touchY = touchobj.clientY;	
+	}
+
+
 
 
 	app.prependToVariable = function(variable,value){
@@ -969,6 +1173,9 @@ app.addVariableEvent('textbox', function(val) {
 
 	app.sendCommands = function(cmds,id,key,callback){
 		// Sends commands `cmds` to a `Device` 
+		// `cmds` expect an array of `command` arrays, where each `command` array contains 4 items: `[format,pin,value,duration]`
+		// Example: Turn digital Pin 4 on for 1 second
+		//		[ [1,4,1,1000] , [1,4,0,0] ]   
 		// Optional `id` specifies the Device ID, otherwise `_defaultDevice` is used
 		// Optional `key` specidies the Pro key
 		// Optional `callback` is called once the commands have been sent.
@@ -979,6 +1186,17 @@ app.addVariableEvent('textbox', function(val) {
 		return this;
 	}
 
+
+
+	app.setAction = function(idOrClassName,handler){
+		// Sets the action `handler` for `idOrClassName`
+		// Removes all other Actions for this `idOrClassName`
+		
+		this._actions[idOrClassName] = null;
+		this.addAction(idOrClassName,handler);
+
+		return this;
+	}
 
 
 	app.setBackgroundColor = function(color){
@@ -1177,10 +1395,13 @@ app.addVariableEvent('textbox', function(val) {
 		this.id = id;
 		this.element= null;
 		this.domId= '';
+		this.hoverImage = null; // Image to display when hovering over this item (our touchover)
+		this.originalImage = null;
 
 		try{
 			this.domId = 'item'+this.id;
 			this.element = document.getElementById(this.domId)
+
 
 		}catch(er){
 			app.handleError(er,'Item.init()')
@@ -1189,10 +1410,47 @@ app.addVariableEvent('textbox', function(val) {
 
 
 		this.addBefore = function(){
+		}
 
+
+		this.callActions = function(){
+			// calls all actions for this `Item`
+			// Actions are set using `app.addAction()`
+			// Actions can be identified using the `itemId`, `DOM id`, and all `Classnames`
+			// Returns `this`
+
+			if(app._actions[this.id])
+				this.callEachAction(app._actions[this.id])
+
+			if(app._actions[this.domId])
+				this.callEachAction(app._actions[this.domId])
+
+			// for each class, call actions
+			if(this.element && this.element.classList){
+				for(var i=0;i<this.element.classList.length;i++){
+					if(app._actions[this.element.classList.item(i)])
+						this.callEachAction(app._actions[this.element.classList.item(i)]);
+				}
+			}
+			return this;
 
 		}
 
+
+		this.callEachAction = function(arr){
+			// Loops through `arr` and calls the action for each element
+			if(arr && arr.length){
+				for(var i=0;i<arr.length;i++)
+					arr[i]();
+			}
+		}
+
+		this.containsClass = function(className){
+			// Returns true if this `Item` contains the custom class `className`
+
+			return this.element.classList.contains(className);
+
+		}
 
 		this.getBackgroundColor = function(){
 			// Returns the `backgroundColor` of this `Item`
@@ -1306,6 +1564,9 @@ app.addVariableEvent('textbox', function(val) {
 			}
 		}
 
+
+
+
 		this.place = function(x,y){
 			// place the item at a certain absolute x,y position
 
@@ -1375,7 +1636,7 @@ app.addVariableEvent('textbox', function(val) {
 
 		this.setImage = function(src){
 			//set the image URL to `src`
-			app.findClass(this.element,"image").src = src
+			app.findClass(this.element,"image").src = src;
 			return this
 		}
 
@@ -1594,6 +1855,20 @@ app.addVariableEvent('textbox', function(val) {
 	    		return this.getTable().rows[0].cells.length
 	    	}
 
+		}
+
+		this.disableScroll = function(){
+			// Disables the defult scrolling of the screen. 
+			// All the content is at fixed position, and content below the fold remains hidden. 
+			
+			this.element.getElementsByClassName('items')[0].retrieve('scroll').disable();
+
+			// To do this using event handler on the screen
+			// app.phone.addEvent('screen',function(id,screen){
+			//  	screen.getElement('.items').retrieve('scroll').disable();
+			// });
+
+			return this;
 		}
 
 
