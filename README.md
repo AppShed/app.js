@@ -167,3 +167,6 @@ This is a top-level class representing a Screen. In AppShed there are four main 
  * v1.2.5 (15-12-2016) Tie device outputs to app variables to monitor values
  * v1.2.6 (20-12-2016) Event and Timer handling improvements
  * v1.2.7 (23-12-2016) Support for single device operating a softAP (Access Point)
+ * v1.2.8 (26-12-2016) Touch position, touchX, touchY, touchAngle etc.
+ 
+ 
