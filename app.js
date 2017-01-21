@@ -1,4 +1,4 @@
-	// JavaScript object to provide additional client-side features to AppShed apps.
+// JavaScript object to provide additional client-side features to AppShed apps.
 	// This code must be copied into the Custom JavaScript field
 	// Open any app with AppShed app-builder, go to Settings -> Advanced tab and find Custom JavaScript
 	// Created by T Stauch
@@ -22,6 +22,7 @@
 	// v1.2.6 (20-12-2016) Event and Timer handling improvements
 	// v1.2.7 (23-12-2016) Support for single device running a softAP (Access Point)
 	// v1.2.8 (26-12-2016) Touch position, touchX, touchY, touchAngle etc.
+	// v1.2.9 (11-01-2017) Logo commands
 
 
 	// TO DO
@@ -36,7 +37,7 @@ try{
 
 	window.app = app;
 
-	app.version = "1.2.8"; // The version number of this code
+	app.version = "1.2.9"; // The version number of this code
 
 
 
@@ -238,6 +239,12 @@ try{
 		// Returns `this`
 
 		for(var i=0;i<imageArray.length;i+=2){
+
+			// Preload the image
+			jQuery('<img/>')[0].src = imageArray[i+1];
+
+
+			// Get the Item
 			var thisItem = this.getItem(imageArray[i]);
 
 
@@ -419,6 +426,17 @@ app.addVariableEvent('textbox', function(val) {
 	}
 
 
+	app.analogWrite = function(idOrProps,pin,value){
+		// Write the PWM `value` to `pin` for the device `idOrProps`
+		// `value` is in the range 0-255 (Uno) and 0-1023 (ESP8266)
+		// Returns `this`
+
+		var props = this.idOrPropsToObject(idOrProps);
+		this.getDevice(props).analogWrite(pin, value)
+
+		return this;
+	}
+
 
 
 
@@ -456,6 +474,18 @@ app.addVariableEvent('textbox', function(val) {
 
 	}
 
+
+	app.callFunction = function(deviceId, called_function, parameters, callback) {
+		// Calls the specified `called_function` on the device`deviceId` sending `parameters` and calling `callback` on the return.
+		// [Optional] `deviceId` defaults to `app.defaultDevice`
+		// Returns `this`
+
+		var device = this.getDevice(deviceId?deviceId:this._defaultDevice);
+		device.callFunction(called_function, parameters, callback);
+
+		return this;
+
+	}
 
 
 	app.clearDevices = function(){
@@ -1035,6 +1065,37 @@ app.addVariableEvent('textbox', function(val) {
 			props.id = String(idOrProps).trim();
 
 		return props;
+	}
+
+
+
+
+	app.logo = function(params,deviceId,callback){
+		// Sends `params` to `deviceId` to draw logo commands
+		// Optional `deviceId` specifies the device, else `_deafultDevice` is used
+		// Params can be in the default Logo format:
+		//	<cmd> <value> <cmd> <value> etc... (line breaks are ignored)
+		// or in script form:
+		//	<cmd>,<value>;<cmd>,<value>;etc.
+		// Optional `callback` is called on completion
+		// Returns `this`
+
+
+		var params = app.getVariable("code")
+		params = params.replace(/\n/g,";");
+		params = params.replace(/;;/g,";");
+		params = params.replace(/^;/g,"");
+		params = params.replace(/  /g," ");
+
+		params = params.replace(/(\w) (\d)/g,"$1,$2");
+		params = params.replace(/(\d) /g,"$1;");
+		params = params.replace(/ /g,"");
+
+
+		this.callFunction(deviceId,"logo",params,callback);
+
+		return this;
+
 	}
 
 
@@ -2365,7 +2426,6 @@ app.addVariableEvent('textbox', function(val) {
 			// Send an API call to the device to write an analog `value` to `pin`.
 			// Optionally If `useBatchCommands` is true the command is cached and sent after a short delay in a batch
 
-
 		  	this.setPinMode(pin,"o").setPinFormat(pin,"a");
 
 		  	if(noBatch || !this.ioBatchMode){
@@ -2814,7 +2874,7 @@ app.addVariableEvent('textbox', function(val) {
 			// Sends the next batch of commands
 			// Optional `cmds` arary holds the commands to send, otherwise uses `this.ioBatchCommands`
 			// `cmds` expect an array of `command` arrays, where each `command` array contains 4 items: `[format,pin,value,duration]`
-			// Optional `callback` is the callback function
+			// Optional `callback` is the callback function - this might be called multiple times if the commands are sent in multiple batches.
 
 
 			var commands;
@@ -2841,7 +2901,7 @@ app.addVariableEvent('textbox', function(val) {
 
 			// If some commands still in the array, send those.
 			if(commands.length)
-				return this.sendCommands(commands);
+				return this.sendCommands(commands,callback);
 
 			return this;
 		};
@@ -3244,6 +3304,3 @@ app.addVariableEvent('textbox', function(val) {
 
 
 } catch(er){console.log("ERROR IN app.js",er)}
-
-
-
