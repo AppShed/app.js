@@ -17,8 +17,18 @@ https://s3-eu-west-1.amazonaws.com/staticmedia.appshed.com/files/picture-puzzle-
   - On a PC http://appshed.com/appbuilder/preview/787693/
   - Move the puzzle pieces by tapping on them
 
-## Usage
-To use  `app.js` in your AppShed app:
+## Usage 
+### Stable Version
+To use  the stable version of `app.js` in your AppShed app:
+* Open your app in the AppBuilder
+* Open `Settings`
+* Got to the `Advanced` tab
+* Paste this line of code at the to of `Custom JavaScript`:
+`window.app = app; var script= document.createElement('script'); script.type= 'text/javascript'; script.src='https://s3-eu-west-1.amazonaws.com/staticmedia.appshed.com/files/appjs.js'; document.getElementsByTagName('head')[0].appendChild(script);`
+
+
+### Latest updates
+To use  the latest updates of `app.js` in your AppShed app:
 * Copy the code from `app.js`
 * Open your app in the AppBuilder
 * Open the `Settings`
@@ -150,8 +160,8 @@ This is a top-level class representing a Screen. In AppShed there are four main 
 
 
 ## Versions
-* 1.0 - Updated April 2016
- * v1.1 (26-5-2016) Added some methods to set colors for Item Text and Background
+ * v1.0.0 (01-04-2016) Launched April 2016
+ * v1.1.0 (26-05-2016) Added some methods to set colors for Item Text and Background
  * v1.1.1 (02-06-2016) error handling, setInterval()
  * v1.1.2 (02-06-2016) app.addDevice()
  * v1.1.3 (10-06-2016) app.getRandomColor(), app.appendToVariable(), screen.setBackgroundColor
@@ -168,5 +178,9 @@ This is a top-level class representing a Screen. In AppShed there are four main 
  * v1.2.6 (20-12-2016) Event and Timer handling improvements
  * v1.2.7 (23-12-2016) Support for single device operating a softAP (Access Point)
  * v1.2.8 (26-12-2016) Touch position, touchX, touchY, touchAngle etc.
- 
+ * v1.2.9 (11-01-2017) Logo commands
+ * v1.3.0 (17-02-2017) Motion Driving
+ * v1.3.1 (12-03-2017) Switching between AP and Cloud mode
+ * v1.3.2 (29-03-2017) Loop function 
+ * v1.3.3 (01-04-2017) Form class added
  
