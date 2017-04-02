@@ -23,6 +23,16 @@
 	// v1.2.7 (23-12-2016) Support for single device running a softAP (Access Point)
 	// v1.2.8 (26-12-2016) Touch position, touchX, touchY, touchAngle etc.
 	// v1.2.9 (11-01-2017) Logo commands
+	// v1.3.0 (17-02-2017) Motion Driving
+	// v1.3.1 (12-03-2017) Switching between AP and Cloud mode
+	// v1.3.2 (29-03-2017) Loop function 
+	// v1.3.3 (01-04-2017) Form class added
+
+
+
+	// HOW TO USE
+	// Add this line of code to the top of Custom JavaScript in your app (remove the comments //):
+	//       window.app = app; var script= document.createElement('script'); script.type= 'text/javascript'; script.src='https://s3-eu-west-1.amazonaws.com/staticmedia.appshed.com/files/appjs.js'; document.getElementsByTagName('head')[0].appendChild(script);
 
 
 	// TO DO
@@ -37,20 +47,27 @@ try{
 
 	window.app = app;
 
-	app.version = "1.2.9"; // The version number of this code
+	app.version = "1.3.3"; // The version number of this code
 
 
 
 
 	// APP Settings
-	app._REQUIREARESTSCRIPTS = true;
+	app._REQUIREJQUERYSCRIPTS = true;
 
 
+	// APP Objects
+	app.form = new Form();
 
 	// APP Properties
 	app._actions = {}; // an object holding actions for each item. Each `key` is `idOrClassName`. Each value is an `Array`, allowing multiple actions to be stored for each `Item`
 	app._appIPAddresses = [];
 	app._ajaxqURL = "https://s3-eu-west-1.amazonaws.com/staticmedia.appshed.com/files/ajaxqjs.js";
+	app._autoConnectDevices = false; // must the app attempt auto connecting devices
+	app._autoConnectGotLocal = false;
+	app._autoConnectHandle; // handle for the interval
+	app._autoConnectInterval = 5000; // time interval for attempting auto connect
+	app._autoConnectTimestamp = 0; // timestamp for that last connection attempt
 	app._currentItemId = null;
 	app._currentScreen = null;
 	app._currentHoverElement; // The DOM `Element` that is currently hovered over
@@ -64,9 +81,13 @@ try{
 	app._ioMaxCommandsPerBatch = 4;
 	app._isActiveTouchmove = false;
 	app._items = {}; // Object to hold `Item` objects;
-	app._jqueryURL = "https://s3-eu-west-1.amazonaws.com/staticmedia.appshed.com/files/jquery-311minjs.js";
+	app._jqueryURL = "https://s3-eu-west-1.amazonaws.com/staticmedia.appshed.com/files/jquery-320minjs.js";
+	app._jqueryURL311 = "https://s3-eu-west-1.amazonaws.com/staticmedia.appshed.com/files/jquery-311minjs.js";
+	app._loopFunctions = []; // array of functions to call on loop
+	app._loopTimeout = 100; // Time delay between loop calls
 	app._scanIPTimeout = 4000; // The timeout for requests when scanning local IP addresses.
 	app._screen_el = null;
+	app._screens = {}; // Object to hold `Screen` objects
 	app._scripts;
 	app._scriptLoaded_jquery = false;
 	app._scriptLoaded_ajaxq = false;
@@ -75,6 +96,8 @@ try{
 	app._scriptsLoaded_arest = false;
 	app._url_boardWithPins = 'https://iot-api.appshed.com/api/boards/withpins/';
 
+	app.deviceMotionEvent = null;
+	app.id;
 	app.isMobile_xxx; // Will be true when running on a supported mobile device (actual property is app.isMobile)
 	app.isPhoneGap_xxx; // Will be true when running on a phonegap platform (actual property is app.isPhoneGap)
 	app.isTouching = false;
@@ -93,31 +116,48 @@ try{
 
 	app.init = function(){
 
-		if(app._REQUIREARESTSCRIPTS)
-			app.setInterval(app.addARESTScripts(),1000,10000)
+		app.id = String(document.getElementsByClassName('app')[0].id).replace(/app/,"");
 
-			$(document.getElementsByClassName('app')[0].id).removeEvent('touchstart', app.onTouchstart);
-			$(document.getElementsByClassName('app')[0].id).removeEvent('mousedown', app.onTouchstart);
-			$(document.getElementsByClassName('app')[0].id).addEvent('touchstart', app.onTouchstart);
-			$(document.getElementsByClassName('app')[0].id).addEvent('mousedown', app.onTouchstart);
+		if(app._REQUIREJQUERYSCRIPTS)
+			app.setInterval(app.addJQueryScripts(),1000,10000)
 
-			$(document.getElementsByClassName('app')[0].id).removeEvent('touchmove', app.onTouchmove);
-			$(document.getElementsByClassName('app')[0].id).removeEvent('mousemove', app.onTouchmove);
-			$(document.getElementsByClassName('app')[0].id).addEvent('touchmove', app.onTouchmove);
-			$(document.getElementsByClassName('app')[0].id).addEvent('mousemove', app.onTouchmove);
+		$(document.getElementsByClassName('app')[0].id).removeEvent('touchstart', app.onTouchstart);
+		$(document.getElementsByClassName('app')[0].id).removeEvent('mousedown', app.onTouchstart);
+		$(document.getElementsByClassName('app')[0].id).addEvent('touchstart', app.onTouchstart);
+		$(document.getElementsByClassName('app')[0].id).addEvent('mousedown', app.onTouchstart);
 
-			$(document.getElementsByClassName('app')[0].id).removeEvent('touchend', app.onTouchend);
-			$(document.getElementsByClassName('app')[0].id).removeEvent('mouseup', app.onTouchend);
-			$(document.getElementsByClassName('app')[0].id).addEvent('touchend', app.onTouchend);
-			$(document.getElementsByClassName('app')[0].id).addEvent('mouseup', app.onTouchend);
+		$(document.getElementsByClassName('app')[0].id).removeEvent('touchmove', app.onTouchmove);
+		$(document.getElementsByClassName('app')[0].id).removeEvent('mousemove', app.onTouchmove);
+		$(document.getElementsByClassName('app')[0].id).addEvent('touchmove', app.onTouchmove);
+		$(document.getElementsByClassName('app')[0].id).addEvent('mousemove', app.onTouchmove);
+
+		$(document.getElementsByClassName('app')[0].id).removeEvent('touchend', app.onTouchend);
+		$(document.getElementsByClassName('app')[0].id).removeEvent('mouseup', app.onTouchend);
+		$(document.getElementsByClassName('app')[0].id).addEvent('touchend', app.onTouchend);
+		$(document.getElementsByClassName('app')[0].id).addEvent('mouseup', app.onTouchend);
+
+		if (window.DeviceMotionEvent) {
+			window.addEventListener('devicemotion', app.deviceMotionHandler, false);
+		} else {
+
+		}
 
 
 		// add the event handlers to the `Screen` to capture `click` events
 		app.phone.addEvent('screen',function( id,el ){
+			// to capture `click` events
 			app.addScreenClickHandlers(id,el)
-
+			
+			// to re-format Capture elements using HTML5
+			app.reformatCaptureItems(id,el);
 		});
 
+
+		if(app._autoConnectDevices)
+			setTimeout(app.autoConnectDevices,app._autoConnectInterval)
+
+
+		setTimeout(app.loop,app._loopTimeout);
 
 	}
 
@@ -162,47 +202,6 @@ try{
 
 
 
-	app.addARESTScripts = function(){
-		// Adds the script tags required by aREST to the `<head>`
-		// This method is called on an `Interval` until all the scripts required by `aREST` have been loaded
-		// Once all the script are loaded, the `Interval` is stopped 
-
-		// check if all scripts have been loaded
-		if(app._scriptLoaded_jquery && app._scriptLoaded_ajaxq){
-			app._scriptsLoaded_arest = true;
-				
-			return true;
-		}
-
-		if(app._scriptLoaded_jquery){
-			if(!app._scriptLoading_ajaxq){
-				app._scriptLoading_ajaxq = true;
-				app.addScript(app._ajaxqURL)
-			}
-		} else if(!app._scriptLoading_jquery){
-			app._scriptLoading_jquery = true;
-			app.addScript(app._jqueryURL)
-		} 
-
-		// test for jQuery and ajaxq
-		try{
-
-			if(!app._scriptLoaded_jquery && app._scriptLoading_jquery && jQuery){
-				$.noConflict();
-				app._scriptLoaded_jquery = true;
-			}
-			if(!app._scriptLoaded_ajaxq && app._scriptLoading_ajaxq && jQuery.ajaxq)
-				app._scriptLoaded_ajaxq = true;
-
-		}catch(er){}
-
-
-		setTimeout(function(){app.addARESTScripts()},300);
-
-	}
-
-
-
 	app.addDevice = function(props){
 
 		// adds an IoT Device (such as ESP8266, RaspberryPi or Arduino) to this app. 
@@ -232,6 +231,45 @@ try{
 
 
 	app.addHoverImages = function(imageArray){
+		// Adds hover images that appear when the user hovers over the `Item` 
+		// Works with touch and mouse events
+		// `imageArray` is an array of objects in the format 
+		//    `[
+		//	   `{`
+		//		`id: id,`
+		//		`class: className,`
+		//		`url: imageURL,`
+		//		`doActions: true|false`
+		//	   `}`,
+		//		...
+		// Returns `this`
+
+		for(var i=0;i<imageArray.length;i++){
+
+			// Preload the image
+			jQuery('<img />')[0].src = imageArray[i].url;
+
+
+			// Get the Item
+			var idOrClassName = ((imageArray[i].id)?imageArray[i].id:imageArray[i].class)
+			var thisItem = this.getItem(idOrClassName);
+
+
+			if(thisItem && thisItem.element){
+
+				// Make sure originalImage is saved
+				if(!thisItem.originalImage)
+					thisItem.originalImage = thisItem.getImage();
+				
+				thisItem.hoverImage = imageArray[i].url;
+				thisItem.onHoverDoActions = imageArray[i].doActions;
+			}
+		}
+		return this;
+	}
+
+
+	app.addHoverImagesOLD = function(imageArray){
 		// Adds multiple images that appear when the user hovers over the `Item` 
 		// Works with touch and mouse events
 		// `imageArray` is an array in the format 
@@ -278,6 +316,47 @@ try{
 	}
 
 
+
+
+
+	app.addJQueryScripts = function(){
+		// Adds the script tags required for jQuery to the `<head>`
+		// This method is called on an `Interval` until all the scripts required have been loaded
+		// Once all the script are loaded, the `Interval` is stopped 
+
+		// check if all scripts have been loaded
+		if(app._scriptLoaded_jquery && app._scriptLoaded_ajaxq){
+			app._scriptsLoaded_arest = true;
+				
+			return true;
+		}
+
+		if(app._scriptLoaded_jquery){
+			if(!app._scriptLoading_ajaxq){
+				app._scriptLoading_ajaxq = true;
+				app.addScript(app._ajaxqURL)
+			}
+		} else if(!app._scriptLoading_jquery){
+			app._scriptLoading_jquery = true;
+			app.addScript(app._jqueryURL)
+		} 
+
+		// test for jQuery and ajaxq
+		try{
+
+			if(!app._scriptLoaded_jquery && app._scriptLoading_jquery && jQuery){
+				$.noConflict();
+				app._scriptLoaded_jquery = true;
+			}
+			if(!app._scriptLoaded_ajaxq && app._scriptLoading_ajaxq && jQuery.ajaxq)
+				app._scriptLoaded_ajaxq = true;
+
+		}catch(er){}
+
+
+		setTimeout(function(){app.addJQueryScripts()},300);
+
+	}
 
 
 
@@ -360,6 +439,17 @@ try{
 	}
 
 
+	app.addStyles = function(styleDescriptor){
+		// add `styleDescriptor` CSS styles to the document head
+
+		var css = document.createElement("style");
+		css.type = "text/css";
+		css.innerHTML = styleDescriptor;
+		document.head.appendChild(css);
+
+		return this;
+	}
+
 
 
 	app.addTabEvent = function(id,func){
@@ -426,6 +516,20 @@ app.addVariableEvent('textbox', function(val) {
 	}
 
 
+
+	app.analogRead = function(idOrProps,pin,callback){
+		// Read the analog state of `pin` for the device `idOrProps`
+		// Optional `callback(data)` function is called passing the `data` of the Response
+		// Returns `this`
+		
+		var props = this.idOrPropsToObject(idOrProps);
+		this.getDevice(props).analogRead(pin, callback)
+
+		return this;
+	}
+
+
+
 	app.analogWrite = function(idOrProps,pin,value){
 		// Write the PWM `value` to `pin` for the device `idOrProps`
 		// `value` is in the range 0-255 (Uno) and 0-1023 (ESP8266)
@@ -458,6 +562,51 @@ app.addVariableEvent('textbox', function(val) {
 
  
 
+	app.autoConnectDevices = function(){
+		// Automatically connects to available devices. 
+		// The first available device becomes the defaultDevice
+
+
+		// if the time has come to autoconnect...
+		if(Date.now() >= app._autoConnectTimestamp + app._autoConnectInterval){
+			app._autoConnectTimestamp = Date.now();
+
+			if(!app._autoConnectGotLocal){
+				app.getDevice(); // try get the local device
+				app._autoConnectGotLocal = true;
+			}
+
+			for(var i in app._devices){
+				var d = app._devices[i];
+				d.getInfo(function(a,textStatus,b){
+
+					// jQuery really messed up the arguments to .always...
+					var data,jqXHR, errorThrown; 
+				    if (a.statusCode) { // this happens when fail
+				    	jqXHR = a; 
+				    	errorThrown = b; 
+				    }else{ // success
+				    	data = a;
+				    	jqXHR = b; 
+
+						// if multiple devices connect, the last one will become the default device.
+						if(data.id && data.id > ""){
+							if(data.connected)
+								app._defaultDevice = data.id;
+							else if(app._defaultDevice == data.id)
+								app._defaultDevice = "";
+						}
+				    }
+
+				});
+			}
+		}
+
+		// run again if required
+		if(app._autoConnectDevices)
+			setTimeout(app.autoConnectDevices,app._autoConnectInterval);
+
+	}
 
 
 
@@ -477,7 +626,7 @@ app.addVariableEvent('textbox', function(val) {
 
 	app.callFunction = function(deviceId, called_function, parameters, callback) {
 		// Calls the specified `called_function` on the device`deviceId` sending `parameters` and calling `callback` on the return.
-		// [Optional] `deviceId` defaults to `app.defaultDevice`
+		// [Optional] `deviceId` defaults to `app._defaultDevice`
 		// Returns `this`
 
 		var device = this.getDevice(deviceId?deviceId:this._defaultDevice);
@@ -532,6 +681,13 @@ app.addVariableEvent('textbox', function(val) {
 	}
 
 
+	app.deviceMotionHandler = function(eventData) {
+		app.deviceMotionEvent = eventData;
+	}
+
+
+
+
 	app.devicesToString = function(){
 		// Returns a string represenation of all the connected `devices`
 		// Default layout is: id - local_ip
@@ -572,7 +728,7 @@ app.addVariableEvent('textbox', function(val) {
 
 
 	app.findClass = function(element, className) { 
-		// Returns the first `DOM Element` matching 
+		// Returns the first `DOM Element` matching  `className`
 		return element.querySelector("." + className) 
 	}
 
@@ -700,6 +856,7 @@ app.addVariableEvent('textbox', function(val) {
 
 		if(key && key > "")
 			props.key = key;
+
 		var device = app._devices[String(props.id).trim()]
 
 
@@ -707,10 +864,15 @@ app.addVariableEvent('textbox', function(val) {
 			// don't update properties if only id passed in (1 key)
 			if(Object.keys(props).length > 1)
 				device.updateProperties(props)
-			return device
 		} else {
-			return app.addDevice(props)
+			device = app.addDevice(props)
 		}
+
+		// if no default, make this the default
+		if(!this._defaultDevice)
+			this._defaultDevice = props.id; 
+
+		return device
 
 	}
 
@@ -1004,11 +1166,23 @@ app.addVariableEvent('textbox', function(val) {
 
 		try{
 
+
 			var element;
 
 			if(!id){
 				id = String(document.querySelector('.screen').id).replace(/screen/,'')
 			}
+
+
+			// look in the cache for the screen
+			if(this._screens[id]){
+				// MUST reload the `element` otherwise it references old stuff
+				this._screens[id].element = document.getElementById(this._screens[id].domId)
+				return this._screens[id];
+			}
+
+
+
 
 			// Special Case: id is the DOM Element of the screen
 			// then the DomID will be in the format "screen123"
@@ -1018,11 +1192,23 @@ app.addVariableEvent('textbox', function(val) {
 				id = element.id.replace(/screen/,'')
 			}
 
-			var aScreen = new app.Screen(id);
-			if(element)
-				aScreen.element = element;
 
-			return aScreen;		
+			// look in the cache for the screen
+			if(this._screens[id]){
+				// MUST reload the `element` otherwise it references old stuff
+				if(element)
+					this._screens[id].element = element;
+				else
+					this._screens[id].element = document.getElementById(this._screens[id].domId)
+
+			} else {
+				var aScreen = new app.Screen(id);
+				if(element)
+					aScreen.element = element;
+				this._screens[id] = aScreen;
+			}
+
+			return this._screens[id];
 
 		}catch(er){
 			app.handleError(er,"app.getScreen("+id+")")
@@ -1081,7 +1267,7 @@ app.addVariableEvent('textbox', function(val) {
 		// Returns `this`
 
 
-		var params = app.getVariable("code")
+		params = String(params);
 		params = params.replace(/\n/g,";");
 		params = params.replace(/;;/g,";");
 		params = params.replace(/^;/g,"");
@@ -1089,8 +1275,8 @@ app.addVariableEvent('textbox', function(val) {
 
 		params = params.replace(/(\w) (\d)/g,"$1,$2");
 		params = params.replace(/(\d) /g,"$1;");
+		params = params.replace(/(\w) (\w)/g,"$1;$2");
 		params = params.replace(/ /g,"");
-
 
 		this.callFunction(deviceId,"logo",params,callback);
 
@@ -1099,6 +1285,56 @@ app.addVariableEvent('textbox', function(val) {
 	}
 
 
+
+	app.loop = function(){
+		// the `loop` function repeats continuously carrying out any user defined tasks
+		// Add new functions to the loops by passing arguments to `loop`
+		// arg[0] - function reference or an ad-hoc function
+		// arg[1] - the interval for this function, e.g. 1000 will run it every second.
+		// arg [2...n] - arguments to the function arg[0]
+		// e.g. `app.loop('app.setBackgroundColor',2000,'random')`
+
+		// If there are arguments, add the new function to the loop
+		if(arguments.length){
+
+			var obj = {};
+			obj.func = arguments[0];
+			obj.lastCalled = 0;
+			obj.interval = 0;
+			
+			// if an interval passed in, use it, or default to always
+			if(arguments.length > 1)
+				obj.interval = arguments[1];
+
+			// if additional arguments, these will be the arguments to pass to the func
+			obj.arguments = [];
+			if(arguments.length > 2){
+				for (var i = 2; i < arguments.length; i++) {
+					obj.arguments[(i-2)] = arguments[i]
+		    	}
+			}
+
+			// add this obj to the loop functions
+			app._loopFunctions[app._loopFunctions.length] = obj;
+
+			// if called with arguments don't self-call
+			return
+		}
+
+		var now = Date.now();
+
+		// now call all the loop functions
+		for(var i=0;i<app._loopFunctions.length;i++){
+			if(!app._loopFunctions[i].interval || app._loopFunctions[i].lastCalled + app._loopFunctions[i].interval < now){
+				app._loopFunctions[i].lastCalled = now;
+				app._loopFunctions[i].func.apply(app._loopFunctions[i].arguments)
+			}
+
+		}	
+
+		setTimeout(app.loop,app._loopTimeout);
+
+	}
 
 
 
@@ -1177,7 +1413,7 @@ app.addVariableEvent('textbox', function(val) {
 			}
 
 			// call actions for this `Item`
-			if(app._currentHoverItem && app._currentHoverItem.callActions)
+			if(app._currentHoverItem && app._currentHoverItem.callActions && app._currentHoverItem.onHoverDoActions)
 				app._currentHoverItem.callActions();
 		}
 
@@ -1208,6 +1444,40 @@ app.addVariableEvent('textbox', function(val) {
 	}
 
 
+	app.reformatCaptureItems = function(id,el){
+		// Reformat `Items` of type `Capture` to show the `file input` element
+		// This is a temporaru fix because the AppShed UI did not update to support HTML5 capture items
+
+		console.log("LOOKING for capture items",el.getElementsByClassName('capture'));
+		var els = el.getElementsByClassName('capture');
+		for(var i=0;i<els.length;i++){
+			try{
+	    		if(els[i].getElementsByClassName('file').length){
+	    			break;
+console.log("NOT ADDING input, already exists")
+	    		}
+
+				var input = document.createElement('input');
+	    		input.type="file";
+	    		input.id = els[i].dataset.name;
+	    		input.name = els[i].dataset.name;
+	    		input.className = "file";
+	    		input.accept = els[i].dataset.capturetype+"/*";
+	    		input.dataset.variable = els[i].dataset.name;
+	    		input.dataset.name = els[i].dataset.name;
+	    		input.dataset.capturetype = els[i].dataset.capturetype;
+
+
+	    		var offEl = els[i].getElementsByClassName('off')[0];
+	    		var parent = offEl.parentNode;
+	    		parent.appendChild(input);
+	    		offEl.style.display = 'none';				
+			}catch(er){
+
+			}
+		}
+
+	}
 
 	app.removeScreenEvent_xxx = function(identifier){
 		// Stops a `Screen` event from being called when a screen loads
@@ -1333,6 +1603,20 @@ app.addVariableEvent('textbox', function(val) {
 
 
 
+	app.setMotorDriver = function(type,id,key,callback){
+		// Sends commands `cmds` to a `Device` 
+		// `cmds` expect an array of `command` arrays, where each `command` array contains 4 items: `[format,pin,value,duration]`
+		// Example: Turn digital Pin 4 on for 1 second
+		//		[ [1,4,1,1000] , [1,4,0,0] ]   
+		// Optional `id` specifies the Device ID, otherwise `_defaultDevice` is used
+		// Optional `key` specidies the Pro key
+
+		this.getDevice(id,key).setMotorDriver(type,callback);
+
+		return this;
+	}
+
+
 
 	app.setPin = function(pinNameOrNumber,val,id,key){
 		// Sets the pin number `pinNameOrNumber` to `val`
@@ -1368,6 +1652,20 @@ app.addVariableEvent('textbox', function(val) {
 
 
 
+	app.showLoader = function(timeout){
+		// Shows the loading element
+		// Optional - Hide the loader after `timeout`
+		// Returns `this`
+
+		
+		document.getElementsByClassName('loader')[0].style.display = 'block';
+
+		if(timeout)
+			setTimeout(function(){document.getElementsByClassName('loader')[0].style.display = 'none'},timeout)
+
+		return this;
+	}
+
 	app.showRemoteScreen_xxx = function(url){
 		// The app will navigate to a remote screen that is loaded from `url`. 
 		// `url` can contain parameters in the form `{name}` that will be replaced with the value of a form `variable` with the given `name`.
@@ -1392,7 +1690,10 @@ app.addVariableEvent('textbox', function(val) {
 	}
 
 
-	app.togglePin = function(pinNameOrNumber,val,id){
+
+
+
+	app.togglePin = function(pinNameOrNumber,id){
 		// Toggles the pin `pinNameOrNumber` 
 		// Optional `id` to use a specific `Device`
 		// If no `id` passed in the default `Device` is used (`IOIO` is the initial default device)
@@ -1413,12 +1714,131 @@ app.addVariableEvent('textbox', function(val) {
 
 
 
-	app.togglePinValue = function(pinNameOrNumber,val,id){
+	app.togglePinValue = function(pinNameOrNumber,id){
 		// Override method for `togglePin`
 		return this.togglePin(pinNameOrNumber,val,id);
 	}
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	// Form object.
+
+	function Form(props) {
+		// Class definition 
+
+		this.type = "Form Object";
+		this.emailKey = "43kjbv934kjds9fwf34erf098uerj8nj63no7r94m4773jk";
+
+
+
+	
+		this.email = function(to,from,subject,body,arg_callback){
+			// Email the form on the current `Screen`
+			// Optional arguments `to,from,subject,body,callback`
+			// It is also possible to pass in form fields for `to,from,subject,body`
+			// Form fields will take precedence over arguments for `to,from,subject,body` 
+			// Overload: the callback function can be passed as any of the arguments
+			// e.g. email('to',callback) is valid 
+
+			var callback;
+
+			if(typeof from == 'function'){
+				callback = from;
+				from = "";
+			}
+			if(typeof subject == 'function'){
+				callback = subject;
+				subject = "";
+			}
+			if(typeof body == 'function'){
+				callback = body;
+				body = "";
+			}
+			if(typeof arg_callback == 'function')
+				callback = arg_callback;
+
+
+			app.showLoader(10000);
+
+
+			var fData = new FormData();
+
+			// Add the email Key
+			fData.append('key',this.emailKey);
+
+
+			// look for input (text, checkbox, radio), textarea , .item.select .selected, .item.picker .picked
+			jQuery(".screen input" ).each(function( index ) {
+				var el = (this);
+				var data = el.value;
+				if(el.type == "file")
+					data = el.files[0]
+				try{
+					fData.append(el.dataset.variable,data);
+					
+					// Check the arguments and override with form data if present
+					if(el.dataset.variable == "to" && data > "")
+						to = data;
+					if(el.dataset.variable == "from" && data > "")
+						from = data;
+					if(el.dataset.variable == "subject" && data > "")
+						subject = data;
+					if(el.dataset.variable == "body" && data > "")
+						body = data;
+
+
+				}catch(er) {
+				}
+			});
+
+
+			// add the arguments 
+			fData.append('to',(to?to:""));
+			fData.append('from',(from?from:""));
+			fData.append('subject',(subject?subject:""));
+			fData.append('body',(body?body:""));
+
+
+			jQuery.ajax({
+			
+				url: "https://appshed.us/extensions/form/email.php", // Url to which the request is send
+				type: "POST",             // Type of request to be send, called as method
+				data: fData,
+				contentType: false,       // The content type used when sending data to the server.
+				cache: false,             // To unable request pages to be cached
+				processData:false        // To send DOMDocument or non processed data file it is set to false
+			}).done(function(data) {
+					callback(data);
+			}).always(function(data) {
+					app.hideLoader();
+			});
+		}
+
+
+	}
 
 
 
@@ -1457,6 +1877,7 @@ app.addVariableEvent('textbox', function(val) {
 		this.element= null;
 		this.domId= '';
 		this.hoverImage = null; // Image to display when hovering over this item (our touchover)
+		this.onHoverDoActions = false;
 		this.originalImage = null;
 
 		try{
@@ -1476,9 +1897,13 @@ app.addVariableEvent('textbox', function(val) {
 
 		this.callActions = function(){
 			// calls all actions for this `Item`
-			// Actions are set using `app.addAction()`
+			// The default Action is set in AppBuilder
+			// Additional Actions can be set using `app.addAction()`
 			// Actions can be identified using the `itemId`, `DOM id`, and all `Classnames`
 			// Returns `this`
+
+			// call the default action
+			appbuilder.app.api.phone.navigator.click(null, this.element );
 
 			if(app._actions[this.id])
 				this.callEachAction(app._actions[this.id])
@@ -1548,6 +1973,15 @@ app.addVariableEvent('textbox', function(val) {
 		}
 
 
+		this.getPosition = function(){
+			// Returns an object with the x,y coordinates of the item
+			// This is only relevant when the item has been placed using `this.place()`;
+			var obj = {};
+			obj.x = parseFloat(String(this.element.style.left).replace("/\D/g",""))
+			obj.y = parseFloat(String(this.element.style.top).replace("/\D/g",""))
+
+			return obj;
+		}
 
 		this.getSubTitle = function(str){
 			//Returns the `Subtitle` of the item
@@ -1635,8 +2069,8 @@ app.addVariableEvent('textbox', function(val) {
 
 				if(this.element){
 					this.element.style.position = 'absolute';
-					this.element.style.left = x+'px';
-					this.element.style.top = y+'px';
+					this.element.style.left = parseInt(x)+'px';
+					this.element.style.top = parseInt(y)+'px';
 				}
 			}catch(er){
 				app.handleError(er,'Item.place()')
@@ -1647,8 +2081,11 @@ app.addVariableEvent('textbox', function(val) {
 
 		this.setBackgroundColor = function(color){
 			//set the background color of this Item to `color`
+			// Special case: `color` is `'random'` will get a random color.
 			try{
-				this.element.style.backgroundColor = color
+				if(!color || color == 'random')
+					color = app.getRandomColor();
+				this.element.style.backgroundColor = color;
 			}catch(er){app.handleError(er,"Item.setBackgroundColor()")}
 			return this;
 		}
@@ -2179,6 +2616,9 @@ app.addVariableEvent('textbox', function(val) {
 		this.setBackgroundColor = function(color){
 			// Sets the `backgroundColor` of this `Screen` to `color`
 
+			if(!color || color == 'random')
+				color = app.getRandomColor();
+
 			var items = app.findClass(this.element,"items")
 		
 			items.style.backgroundImage = 'none';
@@ -2233,6 +2673,19 @@ app.addVariableEvent('textbox', function(val) {
 			app.findClass(header,"title").innerHTML = str
 			return this;
 		}
+
+
+		this.setTitleBackgroundColor = function(color){
+			// Sets the `backgroundColor` of this `Screen Title`  to `color`
+
+			var header = app.findClass(this.element,"header")
+
+			header.style.backgroundImage = 'none';
+			header.style.backgroundColor = color;
+
+			return this;
+		}
+
 
 
 
@@ -2306,6 +2759,7 @@ app.addVariableEvent('textbox', function(val) {
 
 		this.address = "";
 		this.connected = false; // This value is passed in from the device
+		this.deadZoneAdjustment = 0;
 		this.id = "";
 		this.handle_ioBatchCommands = null; // a handle for the timeout to send batch commands
 		this.hardware = ""; // This value is passed in from the device
@@ -2500,8 +2954,12 @@ app.addVariableEvent('textbox', function(val) {
 		this.callFunction = function(called_function, parameters, callback) {
 			// Calls a function defined on the device
 
+			var thisURL = this.address + '/' + called_function + '?params=' + parameters 
+			if(this.id != "local")
+				thisURL += '%26key='+this.key
+
 			jQuery.ajaxq(this.id, {
-			  url: this.address + '/' + called_function + '?params=' + parameters +'%26key='+this.key,
+			  url: thisURL,
 			  crossDomain: true
 			}).done(function(data) {
 			  if (callback != null) {callback(data)}
@@ -2684,6 +3142,10 @@ app.addVariableEvent('textbox', function(val) {
 				try{app.getDevice(data.id).updateInfo(data).info = data}
 				catch(er){app.handleError(er,"Device.getInfo()")};
 				if (callback != null) {callback(data);}
+			}).always(function(a, textStatus, b){
+console.log("JQUERY.always",a, textStatus, b)
+				if (callback != null) 
+					callback(a, textStatus, b);
 			});
 
 			return this;
@@ -2837,6 +3299,88 @@ app.addVariableEvent('textbox', function(val) {
 		};
 
 
+		this.motionDriving = function(state,settings){
+			// Drive the car using motion control (accelerometer)
+			// (Optional) `state` indicates if you are turning Motion Driving on (1) or off (0), Default: `1`
+			// (Optional) `settings` passes an object of settings
+			// returns `this`
+
+			if(state == null)
+				state = 1;
+
+			// if process not running, start it
+			if(this.handler_motionDriving == null){
+				var deviceId = this.id;
+				this.handler_motionDriving = setTimeout(function(){
+					app.getDevice(deviceId).motionDrivingLoop();
+				},200)				
+			}
+		}
+
+
+		this.motionDrivingLoop = function(){
+			// run the motion driving process and keep looping
+
+			// calibrate PWM
+
+			// run logo command
+
+
+			// if process not running, start it
+			var deviceId = this.id;
+			this.handler_motionDriving = setTimeout(function(){
+				app.getDevice(deviceId).motionDrivingLoop();
+			},200)				
+		}
+
+
+		this.motionDrivingSettings = function(){
+			// Adjusts the settings for motion driving based on the current device accelration properties
+
+			var dZA = this.deadZoneAdjustment;
+
+			acceleration = app.deviceMotionEvent.accelerationIncludingGravity;
+			//document.getElementById("vector").innerHTML ="vector2";
+			//acceleration = eventData.accelerationIncludingGravity;
+			var left = 0;
+			var right = 0;
+			if (Math.abs(acceleration.y) > 1) { // back-/forward
+					var speed = acceleration.y * 100;
+					if (acceleration.y > 0) { // add 300 to decrease dead zone
+									left = Math.min(1023, speed + acceleration.x * 40 + dZA);
+									right = Math.min(1023, speed - acceleration.x * 40 + dZA);
+					} else {
+									left = Math.max(-1023, speed + acceleration.x * 40 - dZA);
+									right = Math.max(-1023, speed - acceleration.x * 40 - dZA);						 
+					}
+			} else if (Math.abs(acceleration.x) > 1) { // circle only
+					var speed = Math.min(1023, Math.abs(acceleration.x) * 100);
+					if (acceleration.x > 0) {
+							left = Math.min(1023, speed + dZA);
+							right = Math.max(-1023, -speed - dZA); 
+					} else {
+							left = Math.max(-1023, -speed - dZA);		
+							right = Math.min(1023, speed + dZA);
+					}
+			}
+			if (Math.abs(left) > 200 || Math.abs(right) > 200) { // orig. 100,100
+					move_car(left, right);
+			}
+			var direction = "stop";
+			// if direction is opposite, change sign of +left and +right
+			var acc_x = Math.round(acceleration.x);
+			var acc_y = Math.round(acceleration.y);
+			var acc_z = Math.round(acceleration.z);
+			var leftD = Math.round(-left);
+			var rightD = Math.round(-right);
+
+console.log("[" + acc_x + "," + acc_y + "," + acc_z		+ "]<BR/>" + leftD + ", " + rightD + "<BR/>version: " + version); 
+			
+		}
+
+
+
+
 		this.poll = function(pinNumber,timeout){
 			// Polls `pinNumber` to constantly check the value;
 			// The pin value is saved and can be accessed (after a timeout) using `this.getPinValue()`
@@ -2849,6 +3393,7 @@ app.addVariableEvent('textbox', function(val) {
 
 			// Start polling if not currently active
 
+			// for analog pins, add 100 to the ref
 			if(!this.pollActive[pinNumber]){
 				this.pollActive[pinNumber] = true;
 				this.digitalRead(pinNumber, function(data){
@@ -2947,6 +3492,19 @@ app.addVariableEvent('textbox', function(val) {
 
 		}
 
+
+
+		this.setMotorDriver = function(type,callback){
+			// Sets the Motor Driver to `type`;
+			// Options are: 
+			//   `0` (default) Motor Shield
+			//   `1` L298N
+			//   `2` L9110
+
+
+			return this.callFunction("setMotorDriver", type, callback) 
+
+		}
 
 
 		this.setPending = function(method,pin,state){
@@ -3304,3 +3862,4 @@ app.addVariableEvent('textbox', function(val) {
 
 
 } catch(er){console.log("ERROR IN app.js",er)}
+
