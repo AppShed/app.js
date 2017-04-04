@@ -18,18 +18,22 @@ To use  the stable version of `app.js` in your AppShed app:
 
  `window.app = app; var script= document.createElement('script'); script.type= 'text/javascript'; script.src='https://s3-eu-west-1.amazonaws.com/staticmedia.appshed.com/files/appjs.js'; document.getElementsByTagName('head')[0].appendChild(script);`
 
-
-### Latest updates
-To use  the latest updates of `app.js` in your AppShed app:
-* Copy the code from `app.js`
-* Open your app in the AppBuilder
-* Open the `Settings`
-* Go to the `Advanced` tab
-* Paste the JavaScript code into the field called `Custom JavaScript`
 * You can now call any of the `app` methods as `JavaScript` actions
   * Add an item to your app
   * Change the `Action` to `JavaScript`
   * use the format `app.method()`, e.g. `app.getItem(123)`
+  
+  
+### Latest updates
+NOTE: The latest updates may not be fully tested, so only use this if you are prepared to experiemnt a bit!
+
+To use  the latest updates of `app.js` in your AppShed app:
+* Copy the code from the `app.js` file in GitHub
+* Open your app in the AppBuilder
+* Open the `Settings`
+* Go to the `Advanced` tab
+* Paste the JavaScript code into the field called `Custom JavaScript`
+
 
 
 
