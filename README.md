@@ -6,17 +6,8 @@ JavaScript objects to handle app customisation and modification of items within 
   - Change the text and image values of items
   - Move and remove items from the screen
   - Dyncamically create items using code
-
-## Example
-Here's a small example that uses `app.js` to create a simple Picture Puzzle game. Download the ZIP file and follow the Quick Start Guide.
-
-https://s3-eu-west-1.amazonaws.com/staticmedia.appshed.com/files/picture-puzzle-quick-start-guidezip.zip	
-
-### See it in action:
-  - On a phone http://apps.appshed.com/787693/
-  - On a PC http://appshed.com/appbuilder/preview/787693/
-  - Move the puzzle pieces by tapping on them
-
+  
+  
 ## Usage 
 ### Stable Version
 To use  the stable version of `app.js` in your AppShed app:
@@ -24,7 +15,7 @@ To use  the stable version of `app.js` in your AppShed app:
 * Open `Settings`
 * Got to the `Advanced` tab
 * Paste this line of code at the to of `Custom JavaScript`:
-* `window.app = app; var script= document.createElement('script'); script.type= 'text/javascript'; script.src='https://s3-eu-west-1.amazonaws.com/staticmedia.appshed.com/files/appjs.js'; document.getElementsByTagName('head')[0].appendChild(script);`
+ `window.app = app; var script= document.createElement('script'); script.type= 'text/javascript'; script.src='https://s3-eu-west-1.amazonaws.com/staticmedia.appshed.com/files/appjs.js'; document.getElementsByTagName('head')[0].appendChild(script);`
 
 
 ### Latest updates
@@ -38,6 +29,19 @@ To use  the latest updates of `app.js` in your AppShed app:
   * Add an item to your app
   * Change the `Action` to `JavaScript`
   * use the format `app.method()`, e.g. `app.getItem(123)`
+
+
+
+
+## Example
+Here's a small example that uses `app.js` to create a simple Picture Puzzle game. Download the ZIP file and follow the Quick Start Guide.
+
+https://s3-eu-west-1.amazonaws.com/staticmedia.appshed.com/files/picture-puzzle-quick-start-guidezip.zip	
+
+### See it in action:
+  - On a phone http://apps.appshed.com/787693/
+  - On a PC http://appshed.com/appbuilder/preview/787693/
+  - Move the puzzle pieces by tapping on them
 
 
 
