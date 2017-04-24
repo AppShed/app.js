@@ -14,7 +14,7 @@ To use  the stable version of `app.js` in your AppShed app:
 * Open your app in the AppBuilder
 * Open `Settings`
 * Got to the `Advanced` tab
-* Paste this line of code at the to of `Custom JavaScript`:
+* Paste this line of code at the top of `Custom JavaScript`:
 
  `window.app = app; var script= document.createElement('script'); script.type= 'text/javascript'; script.src='https://s3-eu-west-1.amazonaws.com/staticmedia.appshed.com/files/appjs.js'; document.getElementsByTagName('head')[0].appendChild(script);`
 
