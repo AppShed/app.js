@@ -192,4 +192,9 @@ This is a top-level class representing a Screen. In AppShed there are four main 
  * v1.3.1 (12-03-2017) Switching between AP and Cloud mode
  * v1.3.2 (29-03-2017) Loop function 
  * v1.3.3 (01-04-2017) Form class added
+* v1.3.4 (05-04-2017) import (library), applyStyles, range/slider and other special inputs
+* v1.3.5 (09-04-2017) import improvements, accordion
+* v1.3.6 (17-04-2017) RGB LED, theme & import in Description
+* v1.3.7 (26-04-2017) Form localStorage save, aggregate functions
+* v1.3.8 (28-04-2017) Data Class added, replaces Form Class, AppBuilder CSS, Blue light
  
