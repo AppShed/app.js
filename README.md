@@ -21,8 +21,8 @@ To use  the stable version of `app.js` in your AppShed app:
 * You can now call any of the `app` methods as `JavaScript` actions
   * Add an item to your app
   * Change the `Action` to `JavaScript`
-  * use the format `app.method()`, 
-  * TRY IT:  `app.setBackground()` (this will set a random background color)
+  * Past this code into the code area:  `app.setBackground()` 
+  * This will set a random background color for the screen
   
   
 ### Latest updates
