@@ -31,7 +31,10 @@
 			// v1.3.5 (09-04-2017) import improvements, accordion
 			// v1.3.6 (17-04-2017) RGB LED, theme & import in Description
 			// v1.3.7 (26-04-2017) Form localStorage save, aggregate functions
-			// v1.3.8 (28-04-2017) Data Class added, replaces Form Class, AppBuilder CSS, Blue light
+			// v1.3.8 (28-04-2017) Data Class, Aggregate, Email, Statistics, AppBuilder CSS, Blue light
+			// v1.3.9 (05-05-2017) Data calculations, Data select, Data filters
+			// v1.3.10 (07-05-2017) Data enhancements
+			// v1.3.11 (14-05-2017) NeoPixel basic support
 
 			
 			// HOW TO USE
@@ -45,19 +48,24 @@
 			// Docs https://iot-api.appshed.com/api/doc/
 			// 
 
+			// NOTES
+			// methods starting with _ are private methods
+
+
+
 		try{
 
 
 			window.app = app;
 
-			app.version = "1.3.8"; // The version number of this code
+			app.version = "1.3.10"; // The version number of this code
 
 
 
 
 			// APP Settings
 			app._REQUIREJQUERYSCRIPTS = true;
-
+			app._JQUERYHARDCODED = false;
 
 
 			// APP Properties
@@ -163,6 +171,10 @@
 
 				// add the event handlers to the `Screen` to initialise the screen
 				app.phone.addEvent('screen',function( id,el ){
+
+					// log screen classNames, id
+//app._saveScreenData(id,el)
+
 					// to capture `click` events
 					app.addScreenClickHandlers(id,el)
 					
@@ -171,6 +183,9 @@
 
 					// to re-format range elements using HTML5
 					app.reformatInputTypes(id,el);
+
+					// reformat data items
+					app.reformatDataItems(id,el);
 
 					// Initialise accordions on the screen
 					app.initAccordion.call(el);
@@ -277,7 +292,7 @@
 				app.addStyles(".position-absolute{ position: absolute; } .position-relative{ position: relative; } .float-left{ float: left; } .float-right{ float: rigth; } .clear-right{ clear: right; } .clear-left{ clear: left; } .width-1-3{ width: 30%; } .width-2-3{ width: 62%; } .width-1-4{ width: 22%; } .width-1-2{ width: 46%; } .width-3-4{ width: 71%; }");
 
 				// tables
-				app.addStyles(".screen table{width: 100%;} .screen th{color:#000000;  background:#a6a6a6;  border-bottom:1px solid #22262e;  border-right: 1px solid #22262e;  font-weight: normal;  padding:10px;  text-align:left;  vertical-align:middle;} .screen th:last-child{border-right:none;}  .screen tr{border-top: 1px solid #C1C3D1;  border-bottom-: 1px solid #C1C3D1;  color:#494949;  font-size:16px;} .screen tr:hover td{background:#a6a6a6;  color:#FFFFFF;  border-top: 1px solid #22262e;  border-bottom: 1px solid #22262e;} .screen tr:first-child{border-top:none;} .screen tr:last-child{border-bottom:none;} .screen tr:nth-child(odd) td{background:#EBEBEB;} .screen tr:nth-child(odd):hover td{background:#a6a6a6;} .screen td{background:#FFFFFF;  padding:12px;  text-align:left;  vertical-align:middle;  border-right: 1px solid #C1C3D1;} .screen td:last-child{border-right: 0px;}");   
+				app.addStyles(".screen .datatable table{width: 100%;}.screen .datatable th{color:#000000;  background:#a6a6a6;  border-bottom:1px solid #22262e;  border-right: 1px solid #22262e;  font-weight: normal;  padding:10px;  text-align:left;  vertical-align:middle;}.screen .datatable th:last-child{border-right:none;} .screen .datatable tr{border-top: 1px solid #C1C3D1;  border-bottom-: 1px solid #C1C3D1;  color:#494949;  font-size:16px;}.screen .datatable tr:hover td{background:#a6a6a6;  color:#FFFFFF;  border-top: 1px solid #22262e;  border-bottom: 1px solid #22262e;}.screen .datatable tr:first-child{border-top:none;}.screen .datatable tr:last-child{border-bottom:none;}.screen .datatable tr:nth-child(odd) td{background:#EBEBEB;}.screen .datatable tr:nth-child(odd):hover td{background:#a6a6a6;}.screen .datatable td{background:#FFFFFF;  padding:12px;  text-align:left;  vertical-align:middle;  border-right: 1px solid #C1C3D1;}.screen .datatable td:last-child{border-right: 0px;}");   
 
 
 				// ------------------------------
@@ -396,6 +411,16 @@
 				// This method is called on an `Interval` until all the scripts required have been loaded
 				// Once all the script are loaded, the `Interval` is stopped 
 
+
+				if(app._JQUERYHARDCODED){
+					// jQuery code is pasted in Settings, do not need to load
+						app._scriptLoaded_jquery = true;
+						app._scriptLoaded_ajaxq = true;
+						app._scriptsLoaded_arest = true;
+						$.noConflict();
+
+
+				}
 				// check if all scripts have been loaded
 				if(app._scriptLoaded_jquery && app._scriptLoaded_ajaxq){
 					app._scriptsLoaded_arest = true;
@@ -524,7 +549,6 @@
 				// add `styleDescriptor` CSS styles to the document head
 				// Returns the result of DOM method `appendChild()`
 
-				// Adds a `<script>` tag with `src = url` to the `<head>` 
 				var head= document.getElementsByTagName('head')[0];
 				var tag = document.createElement('style');
 
@@ -1449,11 +1473,12 @@
 				var themes = [];
 
 
-				var matches = app.description.match(/\ntheme.*/gi);
-
+				var matches = app.description.match(/^theme.*/i);
+console.log("matches",matches)
 				if(matches && matches.length){
 					for(var i=0;i<matches.length;i++){
-						themes = themes.concat(matches[i].replace(/\nthemes* */i,"").replace(/ /g,",").replace(/,+/g,",").split(",")); //
+console.log("i",i,matches[i])						
+						themes = themes.concat(matches[i].replace(/^themes* */i,"").replace(/:/g,"").replace(/ /g,",").replace(/,+/g,",").split(",")); //
 					}
 				}
 
@@ -1726,6 +1751,55 @@
 
 
 
+
+
+
+
+			app.neoPixel = function(params,deviceId,callback){
+				// Sends `params` to `deviceId` to do NeoPixel routines
+				// `params` is an object in the format:
+				//	{
+				//		routine: [101...199],	// the routine number
+				//		s: [1...4],    			// Optional, the Strip number, default 1  
+				//		wait: int,				// Optional, the number of milliseconds to wait between changes, default 20
+				//		duration: int,			// Optional, duration of the routine, default to 0 - ongoing
+				//		color: "hex"/{rgb}		// Optional, color either hex string or rgb object
+				//	}
+				// Optional `deviceId` specifies the device, else `_deafultDevice` is used
+				// Optional `callback` is called on completion
+				// Returns `this`
+
+				try{
+					// construct the value string
+					var val = "";
+					var arr = [];
+
+					// Defaults
+					params.s = params.s || 1;
+					params.wait = params.wait || 20;
+					params.duration = params.duration || 0;
+
+					if(params.routine == 102){
+						val = this.toRGBInt(params.color);
+						arr = [params.routine,params.s,val,params.duration]
+					}
+
+console.log("app.neoPixel arr",[arr]);
+					// expecting array of arrays e.g. [ [1,4,1,1000] , [1,4,0,0] ]
+					// cmds,id,key,callback
+					this.sendCommands([arr]);
+
+				}catch(er){
+					app.handleError(er,"app.neoPixel()")
+				}
+
+				return this;
+
+			}
+
+
+
+
 			app.onItemClicked = function(e){
 				// Saves the `_currentItemId` when `Element` `e` is clicked.
 				// Returns `this`
@@ -1886,6 +1960,75 @@
 
 
 
+			app.reformatDataItems = function(id,el){
+				// Reformat `Items` that have special functionality for `Data`
+				// returns `this`
+
+				var vars = app.data.getVariables();
+
+
+				// DATA SELECT
+				// Add variable selection
+
+				app.addStyles(".data_select_controls input{zoom: 2;} .data_select_variable label{float: left; width: inherit; padding-right: 10px} .data_select_controls select{width: inherit;} ")	   
+
+				jQuery(".data_select_controls").remove();
+
+
+				jQuery('.data_select.item').each(function( index ) {
+
+					var el = (this);
+
+					var id = 'data_select'+el.id.replace(/item/,"");
+					var insert = '<div id="'+id+'" class="data_select_controls">';
+
+					insert += '<div class="data_select_variable">';
+
+					vars.forEach(function(currentValue, index, array) {
+						insert += '<label><input name="data_select_variable_'+currentValue+'" type="checkbox">'+currentValue+'</label>'; 
+					});
+					insert += "</div>"; // data_select_variable
+
+					insert += "</div>"; // data_select_controls
+
+					jQuery(this).before(insert)
+				});
+
+
+
+				// DATA FILTER
+				// add additional controls to buttons with class `data_filter`
+				// Remove the existing controls if present
+				jQuery(".data_filter.item .data_filter_controls").remove();
+
+				app.addStyles(".data_filter.item{clear: both;} #app"+app.id+" .data_filter.item.button button.button{width:inherit;} .data_filter_variable,.data_filter_comparison,.data_filter_value{float: left; width: inherit; padding-right: 10px} .data_filter_value{width: 50px;} .data_filter_controls input, .data_filter_controls select{width: inherit;} .data_filter_controls input{line-height: 24px;}")	   
+				var insert = '<div class="data_filter_controls">';
+
+				insert += '<div class="data_filter_variable">';
+				insert += '<select name="data_filter_variable">';
+				insert += '<option value=""> - no filter - </option>';
+				vars.forEach(function(currentValue, index, array) {
+					insert += "<option>"+currentValue+"</option>"; 
+				});
+				insert += "</select></div>";
+
+
+				insert += '<div class="data_filter_comparison"><select name="data_filter_comparison">';
+				["==","!=","<>",">","<",">=","<="].forEach(function(currentValue, index, array) {
+					insert += "<option>"+currentValue+"</option>"; 
+				});
+				insert += "</select></div>";
+
+				insert += '<div class="data_filter_value"><input name="data_filter_value" /></div>';
+
+				insert += "</div>"; // data_filter_controls
+
+				jQuery('.data_filter.item button').before(insert);
+
+				return this;
+			}
+
+
 
 
 			app.reformatInputTypes = function(id,el){
@@ -1896,19 +2039,28 @@
 
 				var inputTypes = ["color","date","datetime-local","email","month","number","range","search","tel","time","url","week"];
 
+				// Set the `type` for `textbox` Items
 				for(var t=0;t<inputTypes.length;t++){
 					var els = el.getElementsByClassName(inputTypes[t]);
 					for(var i=0;i<els.length;i++){
 						try{
+							// check that the `type` has not already been set
 				    		if(els[i].getElementsByClassName('textbox')[0].type == inputTypes[t]){
 				    			break;
 				    		}				
+
 							els[i].getElementsByClassName('textbox')[0].type = inputTypes[t];
 						}catch(er){
 						}
 					}
 
 				}
+
+				// Disable	
+				jQuery(".disabled.item input").each(function(){
+					jQuery(this).attr("disabled", "true");
+				});
+
 
 				return this;
 
@@ -1951,6 +2103,21 @@
 
 
 
+			app._saveScreenData = function(id,el){
+				// Save data about the screen to localStorage
+				// Return `this`
+
+console.log("_saveScreenData",id,el,el.classList.length,el.dataset)
+
+
+				return this;
+
+			}
+				
+
+
+
+
 			app.sendCommands = function(cmds,id,key,callback){
 				// Sends commands `cmds` to a `Device` 
 				// `cmds` expect an array of `command` arrays, where each `command` array contains 4 items: `[format,pin,value,duration]`
@@ -1968,6 +2135,7 @@
 
 
 
+
 			app.setAction = function(idOrClassName,handler){
 				// Sets the action `handler` for `idOrClassName`
 				// Removes all other Actions for this `idOrClassName`
@@ -1977,6 +2145,21 @@
 
 				return this;
 			}
+
+
+
+			app.setBackground = function(color){
+				// Shortcut for app.setBackgroundColor
+				// If no `color` uses random color
+				// Returns app.getBackgroundColor()
+
+				if(!color)
+					color = app.getRandomColor();
+
+				return app.setBackgroundColor(color);
+
+			}
+
 
 
 			app.setBackgroundColor = function(color){
@@ -2187,6 +2370,10 @@
 			app.toRGB = function(color){
 				// Returns an object with `r,g,b` properties for the supplied `color'
 				// `color` must be a 6 character Hexadecimal 
+				// If `color` is already an rgb object, return it 
+
+				if(typeof color === "object" && color.hasOwnProperty("r") && color.hasOwnProperty("g") && color.hasOwnProperty("b"))
+					return color;
 
 				var obj = {};
 
@@ -2211,7 +2398,14 @@
 
 
 
+			app.toRGBInt = function(color){
+				// Returns the RGB integer value for `color`
+				// `color` can be hex color or RGB object
 
+				color = this.toRGB(color);
+
+				return 256*256*color.r+256*color.g+color.b;
+			}
 
 
 
@@ -4627,10 +4821,128 @@
 
 
 
-				this.getData = function(){
-					// Returns the saved data as an object
-										
-					return this.getScreen().getLocalProperty("data");
+				this.getData = function(selectors,filters){
+					// Returns the saved data as an array of objects
+					// Format: 
+					//	[
+					//	  {
+					//		variable1: "value1",
+					//		variable2: "value2",
+					//		...
+					//	  },
+					//	  ...
+					//	]
+					// Optional `selectors` is an array of variable names to be included in the returned data
+					//   Example: `["textbox","number"]`
+					// Optional `filters` specifies any filter criteria
+					// `filters` is an array of filter objects in the format:
+					//   [
+					//      {
+					//			variable: "name", 	// the variable to apply the filter on
+					//			comparison: "==,!=,<>,>,<,>=,<=", 
+					//			value: "xxx",		// alphanumeric value
+					//			logic: "AND|OR"		// optional, determines how to join multiple filters
+					//		} 
+					//   ]
+					// Example: `filters' = [{variable:"textbox",comparison:"!=",value:"some text", logic:"AND"},{variable:"number",comparison:"="}]
+
+
+					var data = this.getScreen().getLocalProperty("data");
+
+
+					// Get Selectors from the current Item 
+					if(!selectors)
+						selectors = [];
+					try{
+						jQuery('#data_select'+app._currentItemId+' input').each(function(){
+							// remove "data_select_variable_" from the input name
+							if(this.checked)
+								selectors.push(this.name.replace(/data_select_variable_/,"")); 
+						})
+
+					}catch(er){}
+
+
+
+					// If the current Item is a `data_filter` then add the filter conditions
+					try{
+						if(app.getItem().containsClass('data_filter')){
+							var variable = jQuery('#item'+app._currentItemId+' .data_filter_variable select').val();
+							var comparison = jQuery('#item'+app._currentItemId+' .data_filter_comparison select').val();
+							var value = jQuery('#item'+app._currentItemId+' .data_filter_value input').val();
+
+							if(variable > "" && comparison > ""){
+								if(!filters)
+									filters = [];
+
+								filters.push({variable: variable, comparison: comparison,value: value});
+							}
+						}
+					}catch(er){}
+
+
+					if(filters){
+						for(var f=0;f<filters.length;f++){
+							var filter = filters[f];
+
+							// Create an array of data conforming to this filter
+							var filteredData = [];
+
+							for(var i=0;i<data.length;i++){
+
+								// find out which variable this filter applies to 
+								var vars = Object.keys(data[i]);
+								var index = vars.indexOf(filter.variable);
+
+								if(index != -1){
+
+
+									var result;
+									var str;
+									// fix single = 
+									if(filter.comparison == "=")
+										filter.comparison = "==";
+
+									if(isNaN(data[i][vars[index]]) || isNaN(filter.value))
+										str = "result = ('"+data[i][vars[index]]+"' "+filter.comparison+" '"+filter.value+"')";
+									else
+										str = "result = ("+data[i][vars[index]]+" "+filter.comparison+" "+filter.value+")";
+
+									try{
+										eval(str);
+									}catch(er){
+										app.handleError(er,"Data.getData eval filter "+str)
+									}
+									if(result){
+										filteredData.push(data[i]);
+									}
+								
+
+								}
+							}
+
+							// replace the data with this data (presume AND join)
+							data = filteredData;
+
+						}
+					}
+
+
+					// Selectors
+					var selectedData = data;
+
+					if(selectors && selectors.length){
+						for(var i=0;i<selectedData.length;i++){
+							var keys = Object.keys(selectedData[i])
+							for(var k=0;k<keys.length;k++){
+								// delete the key if not in selectors
+								if(selectors.indexOf(keys[k]) == -1)
+									delete selectedData[i][keys[k]]
+							}
+						}
+					}
+
+					return selectedData;
 				}
 
 
@@ -4681,7 +4993,18 @@
 				this.getVariables = function(){
 					// Returns an array of `variables` in the data
 
-					return Object.keys(this.getData())
+					var variables = [];
+
+					this.getData().forEach(function(el){
+						variables = variables.concat(Object.keys(el))
+					})
+
+					// get unique variable names
+					variables = variables.filter(function(value, index, self) { 
+    					return self.indexOf(value) === index;
+					})
+
+					return variables;
 
 				}
 
@@ -4690,8 +5013,42 @@
 					// Hide the data that was shown with `showData()`
 					// Returns `this`
 
-					jQuery(".form-data").each(function(){this.style.display = "none";})
+					var scn = this.getScreen();
 
+					if(jQuery('#data-'+scn.id).length)
+						jQuery('#data-'+scn.id).remove();
+
+
+					return this;
+
+				}
+
+
+				this.insert = function(thisData){
+					// Saves the provided `thisData`
+					// `thisData` can be an array (of data objects) or a single data object
+					// The format of the data object is:
+					// {
+					//		variable1: value1,	
+					//		variable2: value2,
+					//		...	
+					//	}
+					// Example as an array:
+					// 		[{dataobject1},{dataobject2},...]
+					// This function allows for programatic insertion of data, as opposed to this.save() which saves form input.
+					// Returns `this`
+
+					data = this.getData();
+
+					if(Array.isArray(thisData)){
+						for(var i=0;i<thisData.length;i++)
+							data.push(thisData[i]);
+					} else {
+						data.push(thisData);
+					}
+
+					this.getScreen().setLocalProperty("data",data);
+					
 					return this;
 
 				}
@@ -4830,11 +5187,71 @@
 					
 					// go through all Form items
 					jQuery(app._formItemsCSSSelector).each(function( index ) {
-						thisData[this.dataset.variable] = app.getVariable(this.dataset.variable);
+						// If there is no dataset.variable, it is not an Item so skip
+						if(this.dataset.variable && this.dataset.variable != "undefined")
+							thisData[this.dataset.variable] = app.getVariable(this.dataset.variable);
 					});
 
-					data.push(thisData);
 
+					// Special Case: any variable starting with "data_" has special meaning
+					try{
+						for (var key in thisData) {
+							if (thisData.hasOwnProperty(key) && key.match(/^data_/)) {
+								var name = key
+								var val  = thisData[key];
+
+								// Remove this key
+								delete thisData[key];
+
+								try{
+
+									// Calculations
+
+									if(name.match(/^data_calculation_/)){
+										// the name of the field follows `data_calculation_`
+										name = name.replace(/^data_calculation_/,"");
+										var formula = val;
+
+										// the formula is saved in the `val`
+										// remove the arithmetic operators to get a list of variables
+										var variables = formula.replace(/[+\-*/%() ]/g,",").split(",");
+
+										// repalce all variables in the formula with values from the other fields
+										for(var k in thisData){
+											if (thisData.hasOwnProperty(k) && !k.match(/^data_/) && !isNaN(thisData[k])) {
+												// if k appears in the formula, replace all occurences with the numeric value
+												if(variables.indexOf(k) != -1){
+													var thisVal = parseFloat(thisData[k]);
+													var myRE = new RegExp(k, 'g');
+
+													formula = formula.replace(myRE,thisVal)
+												}
+											}
+										}
+
+										// Now try evaluate the formula
+										try{
+											var outcome;
+											eval("outcome = "+formula);
+											if(!isNaN(outcome))
+												thisData[name] = outcome;
+										}catch(er){}
+
+									} 
+
+								}catch(er){
+								}
+
+							}
+						}
+
+
+					}catch(er){
+						app.handleError(er,"data.save() data_")
+					}
+
+					// Add thisData to the saved data
+					data.push(thisData);
 					this.getScreen().setLocalProperty("data",data);
 					
 					return this;
@@ -4842,23 +5259,29 @@
 
 
 
-				this.showData = function(){
-					// Shows the data for this form in an HTML table on the screen.
+				this.showData = function(selectors,filters){
+					// Shows the data in an HTML table on the screen.
+					// Optional `selectors` is an array of variable names to be shown (Default all) 
+					// Optional `filters` applies conditions to filter the data (see this.getData() for details on filters)
 					// Returns `this`
 
 
 					var scn = this.getScreen();
 
-					if(jQuery('#form-data-'+scn.id).length)
-						jQuery('#form-data-'+scn.id).remove();
+					if(jQuery('#data-'+scn.id).length)
+						jQuery('#data-'+scn.id).remove();
 
 					var div = document.createElement('div');
-					div.id = "form-data-"+scn.id;
-					div.className = "form-data";
-					div.appendChild(this._htmlBuildTable(this.getData()))
+					div.id = "data-"+scn.id;
+					div.className = "datatable";
+					div.appendChild(this._htmlBuildTable(this.getData(selectors,filters)))
 					div.style += "; overflow: scroll; ";
 					
-					jQuery('#'+app.getItem().domId).after(div)
+					try{
+						jQuery('#'+app.getItem().domId).after(div)
+					}catch(er){
+						app.handleError(er,"Data.showData() jQuery.after()");
+					}
 
 					app.refreshScroll();
 				}
