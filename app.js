@@ -35,11 +35,18 @@
 			// v1.3.9 (05-05-2017) Data calculations, Data select, Data filters
 			// v1.3.10 (07-05-2017) Data enhancements
 			// v1.3.11 (14-05-2017) NeoPixel basic support
+			// v1.3.12 (27-05-2017) UI enhancements
 
 			
 			// HOW TO USE
 			// Add this line of code to the top of Custom JavaScript in your app (remove the comments //):
 			//       window.app = app; var script= document.createElement('script'); script.type= 'text/javascript'; script.src='https://s3-eu-west-1.amazonaws.com/staticmedia.appshed.com/files/appjs.js'; document.getElementsByTagName('head')[0].appendChild(script);
+
+
+			// Special Features -  Custom Class
+			// "hidden" - add to a tab, screen or item to hide that thing
+			// "scroll-disabled" - add to a Screen to disabled scrolling.
+			// "no-arrow" - add to a link to hide the navigate arrow
 
 
 			// TO DO
@@ -95,6 +102,7 @@
 			app._items = {}; // Object to hold `Item` objects;
 			app._jqueryURL = "https://s3-eu-west-1.amazonaws.com/staticmedia.appshed.com/files/jquery-320minjs.js";
 			app._jqueryURL311 = "https://s3-eu-west-1.amazonaws.com/staticmedia.appshed.com/files/jquery-311minjs.js";
+			app._lastScrollRulesScreen = 0;
 			app._loopFunctions = []; // array of functions to call on loop
 			app._loopTimeout = 100; // Time delay between loop calls
 			app._scanIPTimeout = 4000; // The timeout for requests when scanning local IP addresses.
@@ -120,6 +128,10 @@
 			app.touchY = 100; // The y coordinate of the current touch point
 			app.touchAngle = 0; // The angle in degrees of the current touch point relative to touchStart
 
+
+			// Properties that might already be set
+			if(app.disableSystemAlerts == undefined)
+				app.disableSystemAlerts = false; // If true the system alerts won't display (messages for updates, offline etc)
 
 
 
@@ -164,13 +176,15 @@
 
 
 
-				// add the event handlers to the `Screen` to initialise the screen
+				// add the event handlers to the `Tab` to initialise the screen
 				app.phone.addEvent('tab',function( id,el ){
-	console.log("TAB EVENT",id,el)
+
 				});
 
 				// add the event handlers to the `Screen` to initialise the screen
 				app.phone.addEvent('screen',function( id,el ){
+
+					app._currentScreen = id;
 
 					// log screen classNames, id
 //app._saveScreenData(id,el)
@@ -190,6 +204,9 @@
 					// Initialise accordions on the screen
 					app.initAccordion.call(el);
 
+					// disable scroll
+					app.applyScrollRules(el)
+
 				});
 
 
@@ -208,6 +225,8 @@
 
 
 			}
+
+
 
 
 			app._init2 = function(){
@@ -278,6 +297,7 @@
 
 			app.addCoreStyles = function(){
 				// Add the core styles to the page
+				// These can be used in the Custom Class field of the Styles tab for tabs, screens and items
 				// Returns `this`
 
 
@@ -289,10 +309,16 @@
 	            app.addStyles("#app"+app.id+" input[type=range], #app"+app.id+" input[type=color]{width: 100% !important;} #app"+app.id+" input[type=color] { -webkit-appearance: none; border: none; } #app"+app.id+" input[type=color]::-webkit-color-swatch-wrapper { padding: 0; } #app"+app.id+" input[type=color]::-webkit-color-swatch { border: none; } #app"+app.id+" input[type=color]{padding: 0px;}"); 
 				
 				// position
-				app.addStyles(".position-absolute{ position: absolute; } .position-relative{ position: relative; } .float-left{ float: left; } .float-right{ float: rigth; } .clear-right{ clear: right; } .clear-left{ clear: left; } .width-1-3{ width: 30%; } .width-2-3{ width: 62%; } .width-1-4{ width: 22%; } .width-1-2{ width: 46%; } .width-3-4{ width: 71%; }");
+				app.addStyles(".position-absolute{ position: absolute; } .position-relative{ position: relative; } .float-left{ float: left; } .float-right{ float: rigth; } .clear-right{ clear: right; } .clear-left{ clear: left; } .width-1-3{ width: 30%; } .width-2-3{ width: 62%; } .width-1-4{ width: 22%; } .width-1-2{ width: 46%; } .width-3-4{ width: 71%; } .image-float-right img{float: right;}");
 
 				// tables
 				app.addStyles(".screen .datatable table{width: 100%;}.screen .datatable th{color:#000000;  background:#a6a6a6;  border-bottom:1px solid #22262e;  border-right: 1px solid #22262e;  font-weight: normal;  padding:10px;  text-align:left;  vertical-align:middle;}.screen .datatable th:last-child{border-right:none;} .screen .datatable tr{border-top: 1px solid #C1C3D1;  border-bottom-: 1px solid #C1C3D1;  color:#494949;  font-size:16px;}.screen .datatable tr:hover td{background:#a6a6a6;  color:#FFFFFF;  border-top: 1px solid #22262e;  border-bottom: 1px solid #22262e;}.screen .datatable tr:first-child{border-top:none;}.screen .datatable tr:last-child{border-bottom:none;}.screen .datatable tr:nth-child(odd) td{background:#EBEBEB;}.screen .datatable tr:nth-child(odd):hover td{background:#a6a6a6;}.screen .datatable td{background:#FFFFFF;  padding:12px;  text-align:left;  vertical-align:middle;  border-right: 1px solid #C1C3D1;}.screen .datatable td:last-child{border-right: 0px;}");   
+
+
+
+				// display, show hide
+				app.addStyles(".no-arrow.link .link-arrow{display: none;}");   
+  
 
 
 				// ------------------------------
@@ -612,6 +638,32 @@
 			}
 
 
+
+
+			//Override method for alert
+			appbuilder.app.alert = function(message, context) {
+
+				// don't show system alerts
+				if(app.disableSystemAlerts){
+					if(message == "Downloading updates to app" || message == "App is now available offline")
+						return;					
+				}
+
+				if(appbuilder.app.isPhoneGap) {
+					navigator.notification.alert(message);
+				}
+				else if(appbuilder.app.isMobile) {
+					alert(message);
+				}
+				else {
+					appbuilder.app.makeConfirm(message, null, null, null, false).inject(document.id(context || document.getElement('.phone-inner') || document.getElement('.phone') || document.body));
+				}
+			};
+
+
+
+
+
 			app.alertPinValue = function(idOrProps,pin,format){
 				// Shows a screen alert message with the value of the pin for the device `idOrProps`.
 				// Optional `format` can be `a` (for analog) or `d` (for digital) value (Default: `d`)
@@ -669,6 +721,26 @@
 					app.handleError(er,"app.getItem("+id+")")
 				}
 			}
+
+
+
+
+			app.applyScrollRules = function(el){
+				// Applies scroll rules to the current screen (based on classList)
+				// This must only happen once for each screen load
+				if(app._currentScreen != app._lastScrollRulesScreen){
+					app._lastScrollRulesScreen = app._currentScreen;
+
+					if(el.classList.contains('scroll-disabled') ||
+						(app.isMobile && el.classList.contains('mobile-scroll-disabled') )
+						)
+					{
+						el.getElementsByClassName('items')[0].retrieve('scroll').disable();
+					}
+				}
+
+			}
+
 
 		 
 
@@ -887,6 +959,11 @@
 			}
 
 
+			app.disableScroll = function(){
+				app.getScreen().disableScroll();
+				return this;
+			}
+
 
 			app.doImports = function(){
 				// Import required libraries
@@ -933,6 +1010,12 @@
 				for(var i=0;i<themes.length;i++)
 					app.applyStyles(themes[i]);
 
+				return this;
+			}
+
+
+			app.enableScroll = function(){
+				app.getScreen().enableScroll();
 				return this;
 			}
 
@@ -1888,6 +1971,9 @@ console.log("app.neoPixel arr",[arr]);
 			app.onTouchstart = function(e){
 				// Event handler for the `touchstart` and `mousedown` events
 
+				// need to make sure scroll rules have been applied, because on some mobiles the screen event doesn't fire
+				app.applyScrollRules(document.querySelector('.screen'));
+
 				app._isTouching = true;	
 				var touchobj = ((e.event.changedTouches) ? e.event.changedTouches[0] : e.event) // reference first touch point for this event
 				app.touchStartX = touchobj.clientX;
@@ -2367,6 +2453,10 @@ console.log("_saveScreenData",id,el,el.classList.length,el.dataset)
 
 
 
+
+
+
+
 			app.toRGB = function(color){
 				// Returns an object with `r,g,b` properties for the supplied `color'
 				// `color` must be a 6 character Hexadecimal 
@@ -2716,6 +2806,27 @@ console.log("_saveScreenData",id,el,el.classList.length,el.dataset)
 					return this
 				}
 
+
+				this.setLabel = function(str){
+					//set the value of Label to `str`
+					try{
+						app.findClass(this.element,"button").innerHTML = str
+					}catch(er){app.handleError(er,"Item.setLabel()")}
+					return this;
+				}
+
+
+				this.setLabelColor = function(color){
+					//set the color of Label to `color`
+					try{
+						app.findClass(this.element,"button").style.color = color
+					}catch(er){
+						app.handleError(er,"Item.setLabelColor()")
+					}
+
+					return this;
+				}
+
 				this.setSubTitle = function(str){
 					//set the value of Sub Title to `str`
 					app.findClass(this.element,"text").innerHTML = str
@@ -2768,6 +2879,16 @@ console.log("_saveScreenData",id,el,el.classList.length,el.dataset)
 					return this;
 				}
 
+				this.setTitle = function(str){
+					//set the value of Title to `str`
+					try{
+						app.findClass(this.element,"title").innerHTML = str
+					}catch(er){
+						app.handleError(er,"Item.setTitle()")
+					}
+					return this;
+				}
+
 
 				this.setTitleColor = function(color){
 					//set the color of Title to `color`
@@ -2780,15 +2901,6 @@ console.log("_saveScreenData",id,el,el.classList.length,el.dataset)
 					return this;
 				}
 
-				this.setTitle = function(str){
-					//set the value of Title to `str`
-					try{
-						app.findClass(this.element,"title").innerHTML = str
-					}catch(er){
-						app.handleError(er,"Item.setTitle()")
-					}
-					return this;
-				}
 
 
 				this.swap = function(otherId){
@@ -2886,6 +2998,7 @@ console.log("_saveScreenData",id,el,el.classList.length,el.dataset)
 				this.items = {};
 				this.icons = {};
 
+				this.originalBackgroundImage; 
 
 				try{
 
@@ -2969,13 +3082,25 @@ console.log("_saveScreenData",id,el,el.classList.length,el.dataset)
 				this.disableScroll = function(){
 					// Disables the defult scrolling of the screen. 
 					// All the content is at fixed position, and content below the fold remains hidden. 
-					
+					// Returns `this`
+
+console.log("Screen.disableScroll")					
 					this.element.getElementsByClassName('items')[0].retrieve('scroll').disable();
 
 					// To do this using event handler on the screen
 					// app.phone.addEvent('screen',function(id,screen){
 					//  	screen.getElement('.items').retrieve('scroll').disable();
 					// });
+
+					return this;
+				}
+
+
+				this.enableScroll = function(){
+					// Enables the defult scrolling of the screen. 
+					// Returns `this`
+
+					console.log("Screen.enableScroll",this.element.getElementsByClassName('items')[0].retrieve('scroll').enable());
 
 					return this;
 				}
@@ -3281,6 +3406,7 @@ console.log("_saveScreenData",id,el,el.classList.length,el.dataset)
 
 				this.setBackgroundImage = function(src,method){
 					// Sets the `backgroundImage` of this `Screen` to `src`. 
+					// Special case: if `src` is omitted, sets the background to the original background image
 					// Optional `method` determines the layout
 					// One of: `fit` | `fill` | `stretch` | `center` | `tile`
 					// `method` defaults to `fit` 
@@ -3288,8 +3414,15 @@ console.log("_saveScreenData",id,el,el.classList.length,el.dataset)
 					if(!method)
 						method = 'fill'
 
+					if(!src && this.originalBackgroundImage > "")
+						src = this.originalBackgroundImage;
+
 					var items = app.findClass(this.element,"items")
-				
+					
+					// first time, save original
+					if(!this.originalBackgroundImage)
+						this.originalBackgroundImage = String(items.style.backgroundImage).replace(/.*\s?url\([\'\"]?/, '').replace(/[\'\"]?\).*/, '');
+
 					items.style.backgroundImage = "url('"+src+"')";
 					items.style.backgroundRepeat = "no-repeat";
 					items.style.backgroundPosition = "center center";
