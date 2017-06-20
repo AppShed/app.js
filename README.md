@@ -45,8 +45,8 @@ Here's a small example that uses `app.js` to create a simple Picture Puzzle game
 https://s3-eu-west-1.amazonaws.com/staticmedia.appshed.com/files/picture-puzzle-quick-start-guidezip.zip	
 
 ### See it in action:
-  - On a phone http://apps.appshed.com/787693/
-  - On a PC http://appshed.com/appbuilder/preview/787693/
+  - On a phone http://apps.appshed.com/picturepuzzle/
+  - On a PC http://appshed.com/appbuilder/preview/picturepuzzle
   - Move the puzzle pieces by tapping on them
 
 
