@@ -36,6 +36,10 @@
 			// v1.3.10 (07-05-2017) Data enhancements
 			// v1.3.11 (14-05-2017) NeoPixel basic support
 			// v1.3.12 (27-05-2017) UI enhancements
+			// v1.3.13 (01-06-2017) Device supports Sketch 39 (getInfo() sends all pin values)
+			// v1.3.14 (07-06-2017) Minor enhancements, PhoneGap/Cordova fixes
+			// v1.3.15 (13-06-2017) AppBuilder UI enhancements
+			// v1.3.16 (20-06-2017) Import and Theme stability enhancements
 
 			
 			// HOW TO USE
@@ -65,7 +69,7 @@
 
 			window.app = app;
 
-			app.version = "1.3.10"; // The version number of this code
+			app.version = "1.3.16"; // The version number of this code
 
 
 
@@ -164,15 +168,17 @@
 				app.element.addEvent('touchend', app.onTouchend);
 				app.element.addEvent('mouseup', app.onTouchend);
 
-				if (window.DeviceMotionEvent) {
+
+				if(navigator && navigator.accelerometer){
+					// Cordova
+					navigator.accelerometer.watchAcceleration(app.deviceMotionHandler,null,{frequency: 100})
+				} else if (window.DeviceMotionEvent) {
+					// Web app
 					window.addEventListener('devicemotion', app.deviceMotionHandler, false);
 				} else {
 
 				}
 
-
-
-				app.addCoreStyles();
 
 
 
@@ -234,11 +240,21 @@
 
 				if(app._scriptLoaded_jquery && app._scriptLoaded_ajaxq && app._importsDone){
 
+
+
+
+					app.addCoreStyles();
+
+
+
+
 					if(!app.isMobile){
 						// Pulsing light
 						try{
 							jQuery('.phone.background').prepend("<div class='light-pulse' style='  position: absolute;  left:  50px;  top: 35px;'><img src='https://s3-eu-west-1.amazonaws.com/staticmedia.appshed.com/modules/pulsing-blue4gif.gif' title='"+ app.version +"' width='10'></div>");
-						}catch(er){}						
+						}catch(er){
+							app.handleError(er,"Can't show status LED app._init2")
+						}						
 					}
 
 
@@ -309,15 +325,18 @@
 	            app.addStyles("#app"+app.id+" input[type=range], #app"+app.id+" input[type=color]{width: 100% !important;} #app"+app.id+" input[type=color] { -webkit-appearance: none; border: none; } #app"+app.id+" input[type=color]::-webkit-color-swatch-wrapper { padding: 0; } #app"+app.id+" input[type=color]::-webkit-color-swatch { border: none; } #app"+app.id+" input[type=color]{padding: 0px;}"); 
 				
 				// position
-				app.addStyles(".position-absolute{ position: absolute; } .position-relative{ position: relative; } .float-left{ float: left; } .float-right{ float: rigth; } .clear-right{ clear: right; } .clear-left{ clear: left; } .width-1-3{ width: 30%; } .width-2-3{ width: 62%; } .width-1-4{ width: 22%; } .width-1-2{ width: 46%; } .width-3-4{ width: 71%; } .image-float-right img{float: right;}");
+				app.addStyles(".position-absolute{ position: absolute; } .position-relative{ position: relative; } .float-left{ float: left; } .float-right{ float: rigth; } .clear-right{ clear: right; } .clear-left{ clear: left; } .clear-both{clear:both} .width-1-3{ width: 30%; } .width-2-3{ width: 62%; } .width-1-4{ width: 22%; } .width-1-2{ width: 46%; } .width-3-4{ width: 71%; } .image-float-right img{float: right;}");
 
 				// tables
 				app.addStyles(".screen .datatable table{width: 100%;}.screen .datatable th{color:#000000;  background:#a6a6a6;  border-bottom:1px solid #22262e;  border-right: 1px solid #22262e;  font-weight: normal;  padding:10px;  text-align:left;  vertical-align:middle;}.screen .datatable th:last-child{border-right:none;} .screen .datatable tr{border-top: 1px solid #C1C3D1;  border-bottom-: 1px solid #C1C3D1;  color:#494949;  font-size:16px;}.screen .datatable tr:hover td{background:#a6a6a6;  color:#FFFFFF;  border-top: 1px solid #22262e;  border-bottom: 1px solid #22262e;}.screen .datatable tr:first-child{border-top:none;}.screen .datatable tr:last-child{border-bottom:none;}.screen .datatable tr:nth-child(odd) td{background:#EBEBEB;}.screen .datatable tr:nth-child(odd):hover td{background:#a6a6a6;}.screen .datatable td{background:#FFFFFF;  padding:12px;  text-align:left;  vertical-align:middle;  border-right: 1px solid #C1C3D1;}.screen .datatable td:last-child{border-right: 0px;}");   
 
 
+				// Text
+				app.addStyles(".text-align-center input{text-align: center;} ");
+
 
 				// display, show hide
-				app.addStyles(".no-arrow.link .link-arrow{display: none;}");   
+				app.addStyles(".no-arrow.link .link-arrow{display: none;} ");   
   
 
 
@@ -326,8 +345,26 @@
 				// ------------------------------
 
 
+				// Controls on Forms
+				app.addStyles(".controls .help-block{line-height: normal; font-style: italic;}");
+
 				// Module Popup
 				app.addStyles(".categories-list-popup a { background-repeat: no-repeat; background-image: url(https://s3-eu-west-1.amazonaws.com/staticmedia.appshed.com/modules/folder2png.png); padding: 10px; padding-left: 60px; background-color: silver; width: 85%; display: inline-block; margin-bottom: 5px; }  ul.categories-list-popup{ margin-left: 0px; }");
+
+				// Image Chooser
+				app.addStyles("li.group-browser-group i.collapsed{     background-size: 22px;     height: 22px;     width: 22px;     background-repeat: no-repeat;     background-image: url(https://s3-eu-west-1.amazonaws.com/staticmedia.appshed.com/appbuilder/arrow-inactive-lgpng.png); }");
+				app.addStyles("li.group-browser-group i.expanded{     background-size: 22px;     height: 22px;     width: 22px;     background-repeat: no-repeat;     background-image: url(https://s3-eu-west-1.amazonaws.com/staticmedia.appshed.com/appbuilder/arrow-active-lgpng.png); }");
+				app.addStyles("li.group-browser-group i.icon-circle{     font-size: 10px;      height: 22px;     width: 22px;   display: inline-block; }");
+
+				// ID
+				app.addStyles(".control-group:last-of-type{ border: 1px solid silver;     background-color: #f2f2f2; }");
+				app.addStyles("$.control-group .variable-chooser{ border: none");
+
+
+
+				// Actions Extensions Drop-down
+				app.addStyles(".action-selector .action.selected {    background-color: #C8C8C8;background-image: url(https://upload.wikimedia.org/wikipedia/commons/thumb/4/4f/TriangleArrow-Down.svg/532px-TriangleArrow-Down.svg.png);    background-size: 20px 20px;    background-repeat: no-repeat;    background-position-x: 372px;    background-position-y: 20px;}");
+
 
 				return this;
 
@@ -782,7 +819,7 @@
 
 
 				// If the appData hasn't been loaded, load now
-				app.showLoader();
+				app.showLoader(10000);
 
 				app.loadAppData(idOrSlug,function(idOrSlug){
 					// call this same function once loaded to put the styles on the page
@@ -915,7 +952,12 @@
 
 
 			app.deviceMotionHandler = function(eventData) {
-				app.deviceMotionEvent = eventData;
+				if(navigator && navigator.accelerometer){
+					// this is Cordova
+					app.deviceMotionEvent = eventData;
+				}else{
+					app.deviceMotionEvent = eventData.accelerationIncludingGravity;					
+				}
 			}
 
 
@@ -1384,8 +1426,8 @@
 
 				var libs = [];
 
-
-				var matches = app.description.match(/\nimport.*/gi);
+				var desc = "\n"+app.description;
+				var matches = desc.match(/[\n]import.*/gi);
 
 				if(matches && matches.length){
 					for(var i=0;i<matches.length;i++){
@@ -1556,7 +1598,9 @@
 				var themes = [];
 
 
-				var matches = app.description.match(/^theme.*/i);
+				var desc = "\n"+app.description;
+				var matches = desc.match(/[\n]theme.*/gi);
+				//var matches = app.description.match(/^theme.*/i);
 console.log("matches",matches)
 				if(matches && matches.length){
 					for(var i=0;i<matches.length;i++){
@@ -1644,6 +1688,8 @@ console.log("i",i,matches[i])
 
 					// mark this as added
 					app._appData[idOrSlug].jsAdded = true;
+
+console.log("Imported "+idOrSlug);
 
 					return this;
 				}
@@ -2741,7 +2787,7 @@ console.log("_saveScreenData",id,el,el.classList.length,el.dataset)
 							this.element.style.top = parseInt(y)+'px';
 						}
 					}catch(er){
-						app.handleError(er,'Item.place()')
+						app.handleError(addscrer,'Item.place()')
 					}
 
 					return this
@@ -3966,7 +4012,7 @@ console.log("Screen.disableScroll")
 						try{app.getDevice(data.id).updateInfo(data).info = data}
 						catch(er){app.handleError(er,"Device.getInfo()")};
 						if (callback != null) {callback(data);}
-					}).always(function(a, textStatus, b){
+					}).fail(function(a, textStatus, b){
 						if (callback != null) 
 							callback(a, textStatus, b);
 					});
@@ -4162,7 +4208,8 @@ console.log("Screen.disableScroll")
 
 					var dZA = this.deadZoneAdjustment;
 
-					acceleration = app.deviceMotionEvent.accelerationIncludingGravity;
+					acceleration = app.deviceMotionEvent;
+
 					//document.getElementById("vector").innerHTML ="vector2";
 					//acceleration = eventData.accelerationIncludingGravity;
 					var left = 0;
@@ -4600,8 +4647,20 @@ console.log("Screen.disableScroll")
 							this.connected = data.connected;
 						if(data.hardware)
 							this.hardware = data.hardware;
-						if(data.variables)
+						if(data.variables){
 							this.variables = data.variables;
+							if(data.variables.analogValues){
+								this.A0 = parseInt(data.variables.analogValues)
+							}
+							if(data.variables.digitalValues){
+								var vals = data.variables.digitalValues.split(",")
+								for(var i=0;i<vals.length;i++){
+									try{
+										this["D"+i] = parseInt(vals[i]);									
+									}catch(er){}
+								}
+							}
+						}
 
 						// Special cases (These might be passed in props when instantiating)
 						if(data.local_ip)
@@ -5692,7 +5751,13 @@ console.log("Screen.disableScroll")
 
 			// INITIALISE App
 			//setTimeout(function(){app.init()},100);
-			app._init()
+
+			// For PhoneGap Cordova, uncomment this method
+			//appbuilder.app.ready = function() {
+				app._init()
+			//}
+
+
 
 
 
