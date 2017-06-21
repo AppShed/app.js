@@ -40,6 +40,7 @@
 			// v1.3.14 (07-06-2017) Minor enhancements, PhoneGap/Cordova fixes
 			// v1.3.15 (13-06-2017) AppBuilder UI enhancements
 			// v1.3.16 (20-06-2017) Import and Theme stability enhancements
+			// v1.3.17 (21-06-2017) app.log()
 
 			
 			// HOW TO USE
@@ -69,7 +70,7 @@
 
 			window.app = app;
 
-			app.version = "1.3.16"; // The version number of this code
+			app.version = "1.3.17"; // The version number of this code
 
 
 
@@ -107,6 +108,7 @@
 			app._jqueryURL = "https://s3-eu-west-1.amazonaws.com/staticmedia.appshed.com/files/jquery-320minjs.js";
 			app._jqueryURL311 = "https://s3-eu-west-1.amazonaws.com/staticmedia.appshed.com/files/jquery-311minjs.js";
 			app._lastScrollRulesScreen = 0;
+			app._log = []; // holds useful log info for the user
 			app._loopFunctions = []; // array of functions to call on loop
 			app._loopTimeout = 100; // Time delay between loop calls
 			app._scanIPTimeout = 4000; // The timeout for requests when scanning local IP addresses.
@@ -144,6 +146,8 @@
 
 
 			app._init = function(){
+
+				app.log("app version " + app.version);
 
 				app.element = document.getElementsByClassName('app')[0];
 				app.id = String(app.element.id).replace(/app/,"");
@@ -249,9 +253,31 @@
 
 
 					if(!app.isMobile){
-						// Pulsing light
+						// Pulsing light and Log Messages
 						try{
-							jQuery('.phone.background').prepend("<div class='light-pulse' style='  position: absolute;  left:  50px;  top: 35px;'><img src='https://s3-eu-west-1.amazonaws.com/staticmedia.appshed.com/modules/pulsing-blue4gif.gif' title='"+ app.version +"' width='10'></div>");
+							var logHeading = "Log&nbsp;&nbsp;&nbsp;<div id='closeLogMessages' style='display: block;    position: absolute;    top: 5px;    right: 10px;    background: url(https://s3-eu-west-1.amazonaws.com/staticmedia.appshed.com/appbuilder/icon-close-whitepng.png);    width: 20px;    height: 20px;    background-size: 20px;' onClick='document.getElementById(\"logMessages\").style.display = \"none\"'></div><br>";
+
+
+							jQuery('.phone.background').prepend("<div id='statusIndicator' class='light-pulse' style='position: absolute;  left:  50px;  top: 35px;'><img src='https://s3-eu-west-1.amazonaws.com/staticmedia.appshed.com/modules/pulsing-blue4gif.gif' title='"+ app.version +"' width='10'></div>");
+							jQuery('.app').prepend('<div id="logMessages" class="loader" style="display: none;"><div class="inner" style="overflow: auto; font-size: 8pt; margin-top: -175px; margin-left: -150px; height: 350px; width: 300px;"><div class="text">' + logHeading + '<hr></div></div></div>');
+
+
+							// Status Indicator click
+
+							jQuery('#statusIndicator').click(function(){
+								var logs = "";
+								app._log.forEach(function(e){
+									logs += (e.timestamp - app._log[0].timestamp) + ": " +  e.msg + "<br>";
+								});
+
+								jQuery('#logMessages .text').html(logHeading + logs);
+								jQuery('#logMessages').css('display', 'block');
+							});
+
+							//jQuery('#closeLogMessages').click(function(){
+							//	jQuery('#logMessages').css('display', 'none');
+							//});
+
 						}catch(er){
 							app.handleError(er,"Can't show status LED app._init2")
 						}						
@@ -811,6 +837,8 @@
 
 					// mark this as added
 					app._appData[idOrSlug].stylesAdded = true;
+
+					app.log("Style added: "+idOrSlug);
 
 					app.hideLoader();
 
@@ -1689,7 +1717,7 @@ console.log("i",i,matches[i])
 					// mark this as added
 					app._appData[idOrSlug].jsAdded = true;
 
-console.log("Imported "+idOrSlug);
+					app.log("Imported: "+idOrSlug);
 
 					return this;
 				}
@@ -1796,6 +1824,14 @@ console.log("Imported "+idOrSlug);
 
 
 
+			app.log = function(aMsg){
+				// Save `aMsg` to the `app._log`
+				// The user can access the log by clicking on the status light in the simulator
+
+				var now = Date.now();
+				app._log.push({timestamp: now, msg: aMsg});
+
+			}
 
 
 			app.logo = function(params,deviceId,callback){
