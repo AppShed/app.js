@@ -40,18 +40,34 @@
 			// v1.3.14 (07-06-2017) Minor enhancements, PhoneGap/Cordova fixes
 			// v1.3.15 (13-06-2017) AppBuilder UI enhancements
 			// v1.3.16 (20-06-2017) Import and Theme stability enhancements
-			// v1.3.17 (21-06-2017) app.log()
+			// v1.3.17 (25-06-2017) app.log(), Mobile UI
+			// v1.3.18 (30-06-2017) Mobile UI enhancements
+			// v1.4.1 (10-07-2017) Included in UI for all users on load (no Custom JavaScript required), separated out CSS files
+			// v1.4.2 (12-07-2017) device.togglePin(), app.ready
+			// v1.4.3 (16-07-2017) Device.connect (with onConnected event)
+			// v1.4.4 (17-07-2017) app.doScreenImports()	
+			// v1.4.5 (19-07-2017) moved to ./appbuilder, wrap all in window.addEvent
+			// v1.4.6 (22-07-2017) bug fixing - Live site updated to include app.js 28-07-2017
+			// v1.4.7 (28-07-2017) Bug fixes
+			// v1.4.8 (01-08-2017) Connect to devices using local_ip, Device.tieAllPinsToVariables updated
+
 
 			
 			// HOW TO USE
-			// Add this line of code to the top of Custom JavaScript in your app (remove the comments //):
-			//       window.app = app; var script= document.createElement('script'); script.type= 'text/javascript'; script.src='https://s3-eu-west-1.amazonaws.com/staticmedia.appshed.com/files/appjs.js'; document.getElementsByTagName('head')[0].appendChild(script);
+			// app.js is available on all new apps built on AppShed. Use Custom JavaScript or JavaScript actions, prefixing everytihng with the app object
+			// e.g. app.setBackground()
 
 
 			// Special Features -  Custom Class
 			// "hidden" - add to a tab, screen or item to hide that thing
 			// "scroll-disabled" - add to a Screen to disabled scrolling.
 			// "no-arrow" - add to a link to hide the navigate arrow
+			// To automatically import a library, add an `Item`, enter the library name into the `Text` or `Title` fields, and add a Custom Class "import". The library will be imported when the screen loads. It is advisable to put these `import Items` on the home screen so they load when the app loads.
+			//
+			// To use devices on Local LAN:
+			// You can turn off the CSP for your entire browser in Firefox by disabling security.csp.enable in the about:config menu. 
+			// Disable security.mixed_content.block_active_content
+			// WARNING: this will make your computer vulnerable to hacking, spam, viruses etc. Do this at your own risk.
 
 
 			// TO DO
@@ -65,12 +81,24 @@
 
 
 
-		try{
 
+window.addEvent('app',function(app){
+
+
+				 
+
+		try{
 
 			window.app = app;
 
-			app.version = "1.3.17"; // The version number of this code
+
+
+			// add the phone object
+//			var phoneOptions=document.getElementsByClassName("phone-container")[0].getOptionsFromClass("phone-options");
+//			app.phone = new appbuilder.app.Phone(phoneOptions); 
+
+
+			app.version = "1.4.8"; // The version number of this code
 
 
 
@@ -124,10 +152,13 @@
 
 			app.deviceMotionEvent = null;
 			app.data = new AppShedData(); // Handles the data on the current screen
-			app.id;
-			app.isMobile_xxx; // Will be true when running on a supported mobile device (actual property is app.isMobile)
-			app.isPhoneGap_xxx; // Will be true when running on a phonegap platform (actual property is app.isPhoneGap)
+			app.id = null;
+			app.isAppBuilder = false; // True if in the AppBuilder editor
+			//app.isMobile_xxx; // Will be true when running on a supported mobile device (actual property is app.isMobile)
+			app.isMobileEditor = false; // True when the editor switches to mobile mode
+			//app.isPhoneGap_xxx; // Will be true when running on a phonegap platform (actual property is app.isPhoneGap)
 			app.isTouching = false;
+			app.ready = false; // Will be true once initilisation complete
 			app.touchStartX = 100; // The x coordinate of the touchStart point
 			app.touchStartY = 100; // The y coordinate of the touchStart point
 			app.touchX = 100; // The x coordinate of the current touch point
@@ -136,7 +167,7 @@
 
 
 			// Properties that might already be set
-			if(app.disableSystemAlerts == undefined)
+			if(app.disableSystemAlerts === undefined)
 				app.disableSystemAlerts = false; // If true the system alerts won't display (messages for updates, offline etc)
 
 
@@ -154,8 +185,11 @@
 				app.description = app.element.dataset.description;
 
 
+				if(document.getElementById('academy'))
+					app.isAppBuilder = true;
+
 				if(app._REQUIREJQUERYSCRIPTS)
-					app.setInterval(app.addJQueryScripts(),1000,10000)
+					app.setInterval(app.addJQueryScripts(),1000,10000);
 
 				app.element.removeEvent('touchstart', app.onTouchstart);
 				app.element.removeEvent('mousedown', app.onTouchstart);
@@ -175,7 +209,7 @@
 
 				if(navigator && navigator.accelerometer){
 					// Cordova
-					navigator.accelerometer.watchAcceleration(app.deviceMotionHandler,null,{frequency: 100})
+					navigator.accelerometer.watchAcceleration(app.deviceMotionHandler,null,{frequency: 100});
 				} else if (window.DeviceMotionEvent) {
 					// Web app
 					window.addEventListener('devicemotion', app.deviceMotionHandler, false);
@@ -188,40 +222,21 @@
 
 				// add the event handlers to the `Tab` to initialise the screen
 				app.phone.addEvent('tab',function( id,el ){
-
+					app._initTab(id,el);
 				});
+
 
 				// add the event handlers to the `Screen` to initialise the screen
 				app.phone.addEvent('screen',function( id,el ){
-
-					app._currentScreen = id;
-
-					// log screen classNames, id
-//app._saveScreenData(id,el)
-
-					// to capture `click` events
-					app.addScreenClickHandlers(id,el)
-					
-					// to re-format Capture elements using HTML5
-					app.reformatCaptureItems(id,el);
-
-					// to re-format range elements using HTML5
-					app.reformatInputTypes(id,el);
-
-					// reformat data items
-					app.reformatDataItems(id,el);
-
-					// Initialise accordions on the screen
-					app.initAccordion.call(el);
-
-					// disable scroll
-					app.applyScrollRules(el)
-
+					app._initScreen(id,el);
 				});
+				// For the first screen this needs to be called manually
+				app._call_initScreen();
+
 
 
 				if(app._autoConnectDevices)
-					setTimeout(app.autoConnectDevices,app._autoConnectInterval)
+					setTimeout(app.autoConnectDevices,app._autoConnectInterval);
 
 
 				setTimeout(app.loop,app._loopTimeout);
@@ -234,7 +249,7 @@
 				app._init2();
 
 
-			}
+			};
 
 
 
@@ -245,14 +260,9 @@
 				if(app._scriptLoaded_jquery && app._scriptLoaded_ajaxq && app._importsDone){
 
 
-
-
 					app.addCoreStyles();
 
-
-
-
-					if(!app.isMobile){
+					if(app.isAppBuilder){
 						// Pulsing light and Log Messages
 						try{
 							var logHeading = "Log&nbsp;&nbsp;&nbsp;<div id='closeLogMessages' style='display: block;    position: absolute;    top: 5px;    right: 10px;    background: url(https://s3-eu-west-1.amazonaws.com/staticmedia.appshed.com/appbuilder/icon-close-whitepng.png);    width: 20px;    height: 20px;    background-size: 20px;' onClick='document.getElementById(\"logMessages\").style.display = \"none\"'></div><br>";
@@ -279,13 +289,16 @@
 							//});
 
 						}catch(er){
-							app.handleError(er,"Can't show status LED app._init2")
+							app.handleError(er,"Can't show status LED app._init2");
 						}						
 					}
 
 
 
+					// Now it's ready
+					app.ready = true;
 
+					
 					// if there is an app.init() function in this app, call it
 					if(typeof app.init == "function")
 						app.init();
@@ -295,12 +308,61 @@
 				} else
 					setTimeout(app._init2,500);
 
-			}
+			};
+
+
+
+			app._call_initScreen = function(){
+				// repeatedly try call _initScreen on error
+				try{
+					app._initScreen(app.getScreen().id,app.getScreen().element);					
+				}catch(er){
+					app.handleError(er,"app._call_initScreen()");
+					setTimeout(function(){
+						app._call_initScreen();
+					},500);
+				}
+			};
+
+
+			app._initScreen = function(id,el){
+				// initilisation of each screen on load
+
+				app._currentScreen = id;
+
+				// do imports
+				app.doScreenImports(id,el);
+
+				// log screen classNames, id
+//app._saveScreenData(id,el)
+
+				// to capture `click` events
+				app.addScreenClickHandlers(id,el);
+				
+				// to re-format Capture elements using HTML5
+				app.reformatCaptureItems(id,el);
+
+				// to re-format range elements using HTML5
+				app.reformatInputTypes(id,el);
+
+				// reformat data items
+				app.reformatDataItems(id,el);
+
+				// Initialise accordions on the screen
+				app.initAccordion.call(el);
+
+				// disable scroll
+				app.applyScrollRules(el);
+
+			};
 
 
 
 
-
+			app._initTab = function(id,el){
+				id = null;
+				el = null;
+			};
 
 			app.addActions = function(arr){
 				// Adds actions to `Items`
@@ -317,7 +379,7 @@
 
 				
 				return this;
-			}
+			};
 
 
 			app.addAction = function(idOrClassName,handler){
@@ -329,11 +391,11 @@
 					this._actions[idOrClassName] = [];
 				
 				// Add this to the array of actions
-				this._actions[idOrClassName].push(handler)
+				this._actions[idOrClassName].push(handler);
 				
 				   
 				return this;
-			}
+			};
 
 
 
@@ -371,30 +433,94 @@
 				// ------------------------------
 
 
-				// Controls on Forms
-				app.addStyles(".controls .help-block{line-height: normal; font-style: italic;}");
+				if(app.isAppBuilder){
 
-				// Module Popup
-				app.addStyles(".categories-list-popup a { background-repeat: no-repeat; background-image: url(https://s3-eu-west-1.amazonaws.com/staticmedia.appshed.com/modules/folder2png.png); padding: 10px; padding-left: 60px; background-color: silver; width: 85%; display: inline-block; margin-bottom: 5px; }  ul.categories-list-popup{ margin-left: 0px; }");
-
-				// Image Chooser
-				app.addStyles("li.group-browser-group i.collapsed{     background-size: 22px;     height: 22px;     width: 22px;     background-repeat: no-repeat;     background-image: url(https://s3-eu-west-1.amazonaws.com/staticmedia.appshed.com/appbuilder/arrow-inactive-lgpng.png); }");
-				app.addStyles("li.group-browser-group i.expanded{     background-size: 22px;     height: 22px;     width: 22px;     background-repeat: no-repeat;     background-image: url(https://s3-eu-west-1.amazonaws.com/staticmedia.appshed.com/appbuilder/arrow-active-lgpng.png); }");
-				app.addStyles("li.group-browser-group i.icon-circle{     font-size: 10px;      height: 22px;     width: 22px;   display: inline-block; }");
-
-				// ID
-				app.addStyles(".control-group:last-of-type{ border: 1px solid silver;     background-color: #f2f2f2; }");
-				app.addStyles("$.control-group .variable-chooser{ border: none");
+					var metaTag=document.createElement('meta');
+					metaTag.name = "viewport";
+					metaTag.content = "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0";
+					document.getElementsByTagName('head')[0].appendChild(metaTag);
 
 
+					// Controls on Forms
+					app.addStyles(".controls .help-block{line-height: normal; font-style: italic;}");
 
-				// Actions Extensions Drop-down
-				app.addStyles(".action-selector .action.selected {    background-color: #C8C8C8;background-image: url(https://upload.wikimedia.org/wikipedia/commons/thumb/4/4f/TriangleArrow-Down.svg/532px-TriangleArrow-Down.svg.png);    background-size: 20px 20px;    background-repeat: no-repeat;    background-position-x: 372px;    background-position-y: 20px;}");
+					// Module Popup
+					app.addStyles(".categories-list-popup a { background-repeat: no-repeat; background-image: url(https://s3-eu-west-1.amazonaws.com/staticmedia.appshed.com/modules/folder2png.png); padding: 10px; padding-left: 60px; background-color: silver; width: 85%; display: inline-block; margin-bottom: 5px; }  ul.categories-list-popup{ margin-left: 0px; }");
+
+					// Image Chooser
+					app.addStyles("li.group-browser-group i.collapsed{     background-size: 22px;     height: 22px;     width: 22px;     background-repeat: no-repeat;     background-image: url(https://s3-eu-west-1.amazonaws.com/staticmedia.appshed.com/appbuilder/arrow-inactive-lgpng.png); }");
+					app.addStyles("li.group-browser-group i.expanded{     background-size: 22px;     height: 22px;     width: 22px;     background-repeat: no-repeat;     background-image: url(https://s3-eu-west-1.amazonaws.com/staticmedia.appshed.com/appbuilder/arrow-active-lgpng.png); }");
+					app.addStyles("li.group-browser-group i.icon-circle{     font-size: 10px;      height: 22px;     width: 22px;   display: inline-block; }");
+
+					// ID
+					app.addStyles(".control-group:last-of-type{ border: 1px solid silver;     background-color: #f2f2f2; }");
+					app.addStyles("$.control-group .variable-chooser{ border: none;}");
 
 
+
+					// Actions Extensions Drop-down
+					app.addStyles(".action-selector .action.selected {    background-color: #C8C8C8;background-image: url(https://upload.wikimedia.org/wikipedia/commons/thumb/4/4f/TriangleArrow-Down.svg/532px-TriangleArrow-Down.svg.png);    background-size: 20px 20px;    background-repeat: no-repeat;    background-position-x: 372px;    background-position-y: 20px;}");
+
+					// Imports
+					app.addStyles("#app"+app.id+" .import.item{	font-size: 10pt;      font-family: courier;      background-image: url(https://d1yeqpqwjn2qg3.cloudfront.net/h6TqKenj8_GoUJV0xMcqdJ2OxV8=/fit-in/200x200/http://appshed-id-images.s3-website-eu-west-1.amazonaws.com/1579269);      background-repeat: no-repeat;      background-position: left;      background-size: 20px;      color: white;      background-color: black;      border: 2px dashed white;      padding: 3px;      padding-left: 25px;	}");
+
+					// ------------------------------
+					// MOBILE AppBuilder 
+					// ------------------------------
+
+					if(app.isAppBuilder && (screen.width < 963 || jQuery( document ).width() < 963)){
+
+						app.isMobileEditor = true;
+
+						// General UI
+						app.addStyles(".status-bar, .header, .span-toolbox {touch-action: none;} .navbar-fixed-top {     margin-bottom: 20px;     width: 320px;     display: none; }  @media (max-width: 767px) bootstrap.scss:4892 .container {     width: inherit; }  .container {     margin-right: inherit;     margin-left: inherit; }   .phone {     width: 100%;     height: 100%;     margin: inherit; }  .phone, .phone.background, .phone.android, .android, .phone.android.background {     padding-top: 0px;     padding-bottom: 0px;     padding-left: 0px;     padding-right: 0px;     background-image: inherit; }  .phone, .android {     width: 100%;     background-size: 98%;     height: 480px; }  .span-phone, #phone, .phone, .phone .phone-inner {     position: inherit; }  .phone.status .phone-navigator {     top: 0px; }   .span-toolbox {     width: 360px;     position: absolute;     left: 0px;     top: 0px;  bottom: 0px;  overflow: auto;  z-index: 200;     background-color: white; }  .slider .sliding {     background-color: white; }     .phone:not(.horizontal) .cable, .home-button, .iphone5.background .home-button, .phone.background .home-button , .ipad.background .home-button, .ipad.ipadair.background .home-button {height: 0px;     display: none;} .iphone5.iphone5s.background{background-image: inherit}   #academy{display: none} .box2 .app-controls li { width: 55px;");
+
+						// Edit items
+						app.addStyles(".action-selector2-btn{float: none;} .nav-tabs li i{display: none} .nav-tabs>li>a {    padding-right: 3px;    padding-left: 3px;    white-space: nowrap;}  .edit-btns{padding-bottom: 10px; padding-right: 10px} .form-horizontal .control-label {    float: none;    text-align: left;} .form-horizontal .controls {    margin-left: 0px;}");
+
+						// Toolbox
+						app.addStyles(".span-toolbox{display: none; border: 1px solid black;} #toggle-menu{    position: fixed;z-index: 9999;    left: 0px;    top: -8px;    font-size: 30px;    padding: 5px;    background-color: white;    text-align: center;    line-height: 5px;    padding-top: 0px;    padding-bottom: 20px;    border: 1px solid black;    background-color: rgb(238, 238, 238);}  .box2 .content {  padding-top: 20px;} .box2.sliding.toolbox {    border: 1px solid black;    border-top: none;}");
+
+
+
+						// buttons to open/close toolbox
+						jQuery('.app').append("<div id='toggle-menu'>_<br>_<br>_</div>");
+						jQuery('#toggle-menu').click(function(){
+							if(jQuery('.span-toolbox').css('display') == "block"){
+								jQuery('.span-toolbox').css('display','none');
+							}else {
+								jQuery('.span-toolbox').css('display','block');
+							}
+						});
+
+					
+						// Image Chooser
+//						jQuery('.popup-window.upload-picker').css("z-index",300).css("left","10px");
+						
+						app.addStyles(".popup-window {z-index: 300 !important; } .popup-window.upload-picker {left: 10px !important; right: 10px !important;} .popup-window.upload-picker .popup-loaded form .popup-content .row-fluid .span4.resizable: {    xxxmin-height: 400px;} .uploader{display: none;} .popup-window.upload-picker{top: 10px; bottom: 10px; width: inherit} .upload-picker .group-browser{height: 220px; width: 320px; overflow: auto;} .popup-window.upload-picker .popup-loaded form .popup-content .row-fluid .span4.resizable{width: 90%} .popup-window.upload-picker .popup-loaded form .popup-content .row-fluid{overflow: auto} .file-browser-element{overflow: inherit; height: inherit;} .popup-window.upload-picker .popup-loaded form .popup-content .row-fluid .span8{margin-top: 50px;}");
+
+					}
+
+
+				}
+
+
+
+				// ------------------------------
+				// NOT AppBuilder UI
+				// ------------------------------
+
+
+				if(!app.isAppBuilder){
+
+
+					// Imports
+					app.addStyles(".import.item{display: none}");
+
+				}
 				return this;
 
-			}
+			};
 
 
 
@@ -404,7 +530,7 @@
 
 				return jQuery('head').append('<link rel="stylesheet" href="' + url + '" type="text/css" />');
 
-			}
+			};
 
 
 
@@ -430,10 +556,10 @@
 				return device;
 
 			  }catch(er){
-					app.handleError(er,"app.addDevice()")	
+					app.handleError(er,"app.addDevice()");	
 			  }
 
-			}
+			};
 
 
 
@@ -457,7 +583,7 @@
 					jQuery('<img />')[0].src = imageArray[i].url;
 
 					// Get the Item
-					var idOrClassName = ((imageArray[i].id)?imageArray[i].id:imageArray[i].class)
+					var idOrClassName = ((imageArray[i].id)?imageArray[i].id:imageArray[i].class);
 					var thisItem = this.getItem(idOrClassName);
 
 
@@ -472,7 +598,7 @@
 					}
 				}
 				return this;
-			}
+			};
 
 
 
@@ -485,11 +611,11 @@
 
 				try{
 					this._intervals[name] = identifier;
-					return identifier
+					return identifier;
 				}catch(er){
-					app.handleError(er,"app.addInterval")
+					app.handleError(er,"app.addInterval");
 				}
-			}
+			};
 
 
 
@@ -520,11 +646,11 @@
 				if(app._scriptLoaded_jquery){
 					if(!app._scriptLoading_ajaxq){
 						app._scriptLoading_ajaxq = true;
-						app.loadScript(app._ajaxqURL)
+						app.loadScript(app._ajaxqURL);
 					}
 				} else if(!app._scriptLoading_jquery){
 					app._scriptLoading_jquery = true;
-					app.loadScript(app._jqueryURL)
+					app.loadScript(app._jqueryURL);
 				} 
 
 				// test for jQuery and ajaxq
@@ -542,7 +668,7 @@
 
 				setTimeout(function(){app.addJQueryScripts()},300);
 
-			}
+			};
 
 
 
@@ -560,7 +686,7 @@
 				}
 
 				return this;
-			}
+			};
 
 
 
@@ -593,16 +719,16 @@
 					if(id==eid){
 						appbuilder.app.debug("api","screenEvent",id);
 						try{
-							func.call(screen,this)
+							func.call(screen,this);
 						}catch(e){
-							appbuilder.app.debug("api","Error with custom js on screen event",e)
+							appbuilder.app.debug("api","Error with custom js on screen event",e);
 						}
 					}
 				}.bind(this);
 				
-				return this.phone.addEvent("screen",f)
+				return this.phone.addEvent("screen",f);
 
-			}
+			};
 
 
 
@@ -619,7 +745,7 @@
 
 
 				if(code.match(/^http/))
-					return app.loadScript(script)
+					return app.loadScript(script);
 
 
 				var script= document.createElement('script');
@@ -628,7 +754,7 @@
 				script.innerHTML = code;
 				return jQuery('body').prepend(script);									
 
-			}
+			};
 
 
 
@@ -645,7 +771,7 @@
 				tag.innerHTML = styleDescriptor;
 				return head.appendChild(tag);	
 
-			}
+			};
 
 
 
@@ -669,16 +795,16 @@
 							//func.call(tab,this)
 							// Call func after timeout to give time for DOM to load new Screen 
 							setTimeout(function(){
-								func.call(tab,app)
+								func.call(tab,app);
 							},10)
 						}catch(e){
-							appbuilder.app.debug("api","Error with custom js on tab event",e)
+							appbuilder.app.debug("api","Error with custom js on tab event",e);
 						}
 					}
 				}.bind(this);
 				
-				return this.phone.addEvent("tab",f),f
-			}
+				return this.phone.addEvent("tab",f),f;
+			};
 
 
 			app.addVariableEvent_xxx = function(id, func){
@@ -698,7 +824,7 @@
 		```
 		*/
 
-			}
+			};
 
 
 
@@ -736,7 +862,7 @@
 				this.getDevice(props).alertPinValue(pin,format);
 
 				return this;
-			}
+			};
 
 
 
@@ -747,10 +873,10 @@
 				// Returns `this`
 				
 				var props = this.idOrPropsToObject(idOrProps);
-				this.getDevice(props).analogRead(pin, callback)
+				this.getDevice(props).analogRead(pin, callback);
 
 				return this;
-			}
+			};
 
 
 
@@ -761,10 +887,10 @@
 				// Returns `this`
 
 				var props = this.idOrPropsToObject(idOrProps);
-				this.getDevice(props).analogWrite(pin, value)
+				this.getDevice(props).analogWrite(pin, value);
 
 				return this;
-			}
+			};
 
 
 
@@ -776,14 +902,14 @@
 				try{
 
 					if(atFront)
-						return this.setVariable(variable,value+this.getVariable(variable))
+						return this.setVariable(variable,value+this.getVariable(variable));
 					else
-						return this.setVariable(variable,this.getVariable(variable)+value)
+						return this.setVariable(variable,this.getVariable(variable)+value);
 
 				}catch(er){
-					app.handleError(er,"app.getItem("+id+")")
+					app.handleError(er,"app.getItem("+id+")");
 				}
-			}
+			};
 
 
 
@@ -802,7 +928,7 @@
 					}
 				}
 
-			}
+			};
 
 
 		 
@@ -816,6 +942,11 @@
 				if(!idOrSlug)
 					return this;
 
+				// make sure the appdata object exists
+				if(!app._appData[idOrSlug])
+					app._appData[idOrSlug] = {};
+
+
 				if(String(idOrSlug).toLowerCase() == "greyrivets"){
 					app.addStyles(".button{color: Black;}.item.button,.item.plain,.item.text,.item.textbox,.item.thumb{background-color:rgba(0,0,0,.3);margin:10px}.width50{float:left;width:45%}.clearboth{clear:both}.flush{margin:0}.item.image{text-align:center;background-color:#000}.transparent.item.image{background:0 0}.button{color:#000}.app,.item-icon-inner .title,button{color:#fff}.screen.list .items{background-image:url(https://d1yeqpqwjn2qg3.cloudfront.net/WWwugf2Zecrqc26VaJZvPT8pd4k=/fit-in/640x960/http://appshed-id-images.s3-website-eu-west-1.amazonaws.com/4047619);background-repeat:no-repeat;background-position:center center;background-size:cover;background-color:#303030}.item{border-bottom-color:#424242}");
 					return this;			
@@ -823,14 +954,14 @@
 
 
 				// check if appData loaded
-				if(app._appData[idOrSlug]){
+				if(app._appData[idOrSlug].data){
 
 					// if already added, return
 					if(app._appData[idOrSlug].stylesAdded)
 						return this;
 
 					// get the styles from splashhtml
-					var css = app._appData[idOrSlug]['html'].replace(/<style scoped>([\s\S]*)<\/style>[\s\S]*/,"$1")
+					var css = app._appData[idOrSlug].data['html'].replace(/<style scoped>([\s\S]*)<\/style>[\s\S]*/,"$1");
 					// remove #app1234 from the css
 					css = css.replace(/#app\d+/g,"#app"+app.id); //
 					app.addStyles(css);
@@ -856,7 +987,7 @@
 
 
 				return this;
-			}
+			};
 
 
 
@@ -904,7 +1035,7 @@
 				if(app._autoConnectDevices)
 					setTimeout(app.autoConnectDevices,app._autoConnectInterval);
 
-			}
+			};
 
 
 
@@ -919,7 +1050,7 @@
 
 				return this;
 
-			}
+			};
 
 
 			app.callFunction = function(deviceId, called_function, parameters, callback) {
@@ -932,7 +1063,7 @@
 
 				return this;
 
-			}
+			};
 
 
 			app.clearDevices = function(){
@@ -942,7 +1073,7 @@
 				this._devices = {};
 				this._defaultDevice = null;
 				return this;
-			}
+			};
 
 			app.clearInterval = function(identifierOrName){
 				// Clears the interval identified by `identifierOrName`
@@ -954,8 +1085,8 @@
 					// if no identifierOrName, clear all Intervals
 					if(identifierOrName){
 						// try clear the interval using both forms
-						window.clearInterval(identifierOrName)
-						window.clearInterval(this._intervals[identifierOrName])
+						window.clearInterval(identifierOrName);
+						window.clearInterval(this._intervals[identifierOrName]);
 
 						// Delete the property from _intervals
 						delete this._intervals[identifierOrName];
@@ -971,12 +1102,12 @@
 
 
 				}catch(er){
-					app.handleError(er,"app.clearInterval()")	
+					app.handleError(er,"app.clearInterval()");
 				}
 
 				return this;
 
-			}
+			};
 
 
 			app.deviceMotionHandler = function(eventData) {
@@ -986,7 +1117,7 @@
 				}else{
 					app.deviceMotionEvent = eventData.accelerationIncludingGravity;					
 				}
-			}
+			};
 
 
 
@@ -1000,7 +1131,7 @@
 					rVal += this._devices[k].id + " - " + this._devices[k].variables.local_ip + "\n";
 
 				return rVal;
-			}
+			};
 
 
 
@@ -1014,7 +1145,7 @@
 				this.getDevice(props).digitalRead(pin, callback)
 
 				return this;
-			}
+			};
 
 
 			app.digitalWrite = function(pin,value,idOrProps){
@@ -1026,13 +1157,13 @@
 				this.getDevice(props).digitalWrite(pin, value)
 
 				return this;
-			}
+			};
 
 
 			app.disableScroll = function(){
 				app.getScreen().disableScroll();
 				return this;
-			}
+			};
 
 
 			app.doImports = function(){
@@ -1062,9 +1193,37 @@
 				app._importsDone = true;
 
 				return this;
-			}
+			};
 
 
+
+
+			app.doScreenImports = function(id,el){
+				// Import libraries referenced on the current screen
+
+
+				jQuery('.import').each(function(){
+					try{
+			    		// presume a text item with the library name as the only content in the .html
+			    		// also look for an Icon with content in .title
+			    		var el = jQuery(this);
+			    		var content = el.find('.html').first().text();
+			    		if(el.hasClass('icon')){
+				    		content = el.find('.title').first().text();
+			    		}
+			    		if(content){
+			    			app.import(content,function(){
+			    				setTimeout(function(){
+									el.css('display',"none");
+								},2000)	    				
+			    			});
+			    		}
+					}catch(er){
+					}
+
+				});
+
+			};
 
 
 			app.doThemes = function(){
@@ -1081,19 +1240,20 @@
 					app.applyStyles(themes[i]);
 
 				return this;
-			}
+			};
 
 
 			app.enableScroll = function(){
 				app.getScreen().enableScroll();
 				return this;
-			}
+			};
 
 
 			app.findClass = function(element, className) { 
 				// Returns the first `DOM Element` matching  `className`
-				return element.querySelector("." + className) 
-			}
+				return element.querySelector("." + className);
+
+			};
 
 
 
@@ -1165,7 +1325,7 @@
 			  }
 
 			  return this;
-			}
+			};
 
 
 
@@ -1194,7 +1354,7 @@
 				}
 
 				return null;
-			}
+			};
 
 
 
@@ -1204,7 +1364,7 @@
 
 				return this.getScreen(idOrClassName).getData()
 
-			}
+			};
 
 
 
@@ -1248,14 +1408,14 @@
 
 				return device
 
-			}
+			};
 
 
 
 
 			app.getIdFromDOMId = function(domId){
 				return parseInt(String(domId).replace(/[a-z]/g,""))
-			}
+			};
 
 
 
@@ -1347,7 +1507,8 @@
 			        callback()
 			    }, 1000);
 
-			}
+			};
+
 
 
 
@@ -1362,15 +1523,25 @@
 				if(!idOrClassName && this._currentItemId)
 					idOrClassName = this._currentItemId;
 
-				var testId = this.getIdFromDOMId(idOrClassName)
+
+				// If 'element' supplied but no id, get id from the element
+				if(!idOrClassName && (element  && typeof elemet === "object" && element.id && element.id.match(/item/))){
+					idOrClassName = element.id.replace(/item/,'');
+				}
+
+
+				var testId = this.getIdFromDOMId(idOrClassName);
 
 				try{
 
 					if(this._items[testId]){
 						// MUST reload the `element` otherwise it references old stuff
-						this._items[testId].element = document.getElementById(this._items[testId].domId)
+						this._items[testId].init(element);
 						return this._items[testId];
 					}
+
+
+
 
 					var item = new this.Item(testId)
 
@@ -1394,7 +1565,7 @@
 				}catch(er){
 					this.handleError(er,"app.getItem("+idOrClassName+")")
 				}
-			}
+			};
 
 
 
@@ -1415,7 +1586,7 @@
 
 				}
 
-			}
+			};
 
 
 			app.getItemByClassName = function(name){
@@ -1426,7 +1597,7 @@
 				if(elements && elements.length && elements[0].id.match(/item/))
 					return this.getItemByDomId(elements[0].id)
 
-			}
+			};
 
 
 			app.getItemByDomId = function(domId,element){
@@ -1435,18 +1606,18 @@
 
 				return app.getItem(parseInt(String(domId).replace(/[a-z]/g,"")),element)
 
-			}
+			};
 
 
 			app.getItemsElement = function(){
 				return document.getElementsByClassName('items')[0]
-			}
+			};
 
 
 			app.getJSON = function(appIdOrSlug){
 				// returns a JSON object 
 
-			}
+			};
 
 
 			app.getLibraries = function(){
@@ -1466,7 +1637,7 @@
 				return libs;
 
 
-			}
+			};
 
 
 
@@ -1481,7 +1652,7 @@
 						if(callback != null) callback(ip_addr);
 					}
 				});
-			}
+			};
 
 
 			app.getPinValue = function(pinNameOrNumber,id){
@@ -1504,7 +1675,7 @@
 					// all other devices... use Device methods
 					return device.getPinValue(pinNameOrNumber);
 				}
-			}
+			};
 
 
 
@@ -1541,7 +1712,7 @@
 
 
 
-			}
+			};
 
 
 
@@ -1558,7 +1729,7 @@
 						if(callback != null) callback(ip_addr);
 					}
 				});
-			}
+			};
 
 
 
@@ -1616,7 +1787,7 @@
 				}
 
 
-			}
+			};
 
 
 
@@ -1629,17 +1800,15 @@
 				var desc = "\n"+app.description;
 				var matches = desc.match(/[\n]theme.*/gi);
 				//var matches = app.description.match(/^theme.*/i);
-console.log("matches",matches)
 				if(matches && matches.length){
 					for(var i=0;i<matches.length;i++){
-console.log("i",i,matches[i])						
 						themes = themes.concat(matches[i].replace(/^themes* */i,"").replace(/:/g,"").replace(/ /g,",").replace(/,+/g,",").split(",")); //
 					}
 				}
 
 				return themes;
 
-			}
+			};
 
 
 			app.getVariable_xxx = function(name){
@@ -1648,7 +1817,7 @@ console.log("i",i,matches[i])
 				//   It is included here for documentation purposes only.]
 
 
-			}
+			};
 
 
 
@@ -1658,7 +1827,7 @@ console.log("i",i,matches[i])
 				var msg = msg || ""
 				console.log("ERROR: ",er,msg)
 
-			}
+			};
 
 
 			app.hideLoader = function(timeout){
@@ -1672,7 +1841,7 @@ console.log("i",i,matches[i])
 				setTimeout(function(){document.getElementsByClassName('loader')[0].style.display = 'none'},timeout)
 
 				return this;
-			}
+			};
 
 
 
@@ -1687,13 +1856,14 @@ console.log("i",i,matches[i])
 					props.id = String(idOrProps).trim();
 
 				return props;
-			}
+			};
 
 
 
-			app.import = function(idOrSlug){
+			app.import = function(idOrSlug,callback){
 				// Imports the required JavaScript `library` 
 				// The library is imported from the Custom JavaScript from another app `idOrSlug`
+				// Optional `callback` called once imported
 				// Valid values for `library` include:
 				//  * appcar
 				// Returns `this`
@@ -1703,34 +1873,48 @@ console.log("i",i,matches[i])
 				if(!idOrSlug)
 					return this;
 
+				// make sure the appdata object exists
+				if(!app._appData[idOrSlug])
+					app._appData[idOrSlug] = {};
 
 				// check if appData loaded
-				if(app._appData[idOrSlug]){
-
+				if(app._appData[idOrSlug].data){
 					// if already added, return
-					if(app._appData[idOrSlug].jsAdded)
+					if(app._appData[idOrSlug].jsAdded){
+						if(callback != null) callback(idOrSlug);
 						return this;
+					}
 
 					// get the script from .javascript
-					app.addScript(app._appData[idOrSlug]['javascript']);
+					app.addScript(app._appData[idOrSlug].data['javascript']);
 
 					// mark this as added
 					app._appData[idOrSlug].jsAdded = true;
 
 					app.log("Imported: "+idOrSlug);
 
+					if(callback != null) callback(idOrSlug);
+
 					return this;
 				}
 
 				// if no appData, load it and import again on callback
-				app.loadAppData(idOrSlug,function(idOrSlug){
-					app.import(idOrSlug);
-				});
+				// set a flag so that the data is only loaded once
+
+				if(!app._appData[idOrSlug].loadingData){
+					app._appData[idOrSlug].loadingData = true;
+
+					app.loadAppData(idOrSlug,function(idOrSlug){
+						app._appData[idOrSlug].dataLoaded = true;	
+						app.import(idOrSlug,callback);
+					});
+
+				}
 
 
 
 				return this;
-			}
+			};
 
 
 			app.initAccordion = function() {
@@ -1754,13 +1938,13 @@ console.log("i",i,matches[i])
 				});
 				
 				return this;	
-			}
+			};
 
 
 
 
 			app.loadAppData = function(idOrSlug,callback){
-				// Loads the app data for another app `idOrslug`
+				// Loads the app data for another app `idOrSlug`
 				// Optional `callback` function called, passed one parameter: `idOrSlug`
 				// Returns `this`
 
@@ -1769,7 +1953,6 @@ console.log("i",i,matches[i])
 				// this allows the app 'appcar' to be the user facing app
 				if(idOrSlug == "appcar")
 					idOrSlug = 'libappcar';
-
 
 
 				jQuery.ajax({			
@@ -1785,7 +1968,10 @@ console.log("i",i,matches[i])
 							if(data.status == 200 || data.statusText == "OK"){
 								try{
 									var rObj = JSON.parse(data.responseText.replace(/appbuilder\.app\.FileLoader\.fetched\(([\s\S]*)\);$/,"$1")); //
-									app._appData[idOrSlug] = rObj['app'][Object.keys(rObj['app'])[0]];
+									if(!app._appData[idOrSlug])
+										app._appData[idOrSlug] = {};
+
+									app._appData[idOrSlug].data = rObj['app'][Object.keys(rObj['app'])[0]];
 
 									if(callback != null) callback(idOrSlug);
 								} catch(er){
@@ -1798,7 +1984,7 @@ console.log("i",i,matches[i])
 
 					}
 				});		
-			}
+			};
 
 
 
@@ -1820,7 +2006,7 @@ console.log("i",i,matches[i])
 				script.type= 'text/javascript';
 				script.src= url;
 				return head.appendChild(script);									
-			}
+			};
 
 
 
@@ -1831,7 +2017,7 @@ console.log("i",i,matches[i])
 				var now = Date.now();
 				app._log.push({timestamp: now, msg: aMsg});
 
-			}
+			};
 
 
 			app.logo = function(params,deviceId,callback){
@@ -1860,7 +2046,7 @@ console.log("i",i,matches[i])
 
 				return this;
 
-			}
+			};
 
 
 
@@ -1905,14 +2091,17 @@ console.log("i",i,matches[i])
 				for(var i=0;i<app._loopFunctions.length;i++){
 					if(!app._loopFunctions[i].interval || app._loopFunctions[i].lastCalled + app._loopFunctions[i].interval < now){
 						app._loopFunctions[i].lastCalled = now;
-						app._loopFunctions[i].func.apply(app._loopFunctions[i].arguments)
+						try{
+							app._loopFunctions[i].func.apply(app._loopFunctions[i].arguments)
+						}catch(er){
+						}
 					}
 
 				}	
 
 				setTimeout(app.loop,app._loopTimeout);
 
-			}
+			};
 
 
 
@@ -1949,7 +2138,6 @@ console.log("i",i,matches[i])
 						arr = [params.routine,params.s,val,params.duration]
 					}
 
-console.log("app.neoPixel arr",[arr]);
 					// expecting array of arrays e.g. [ [1,4,1,1000] , [1,4,0,0] ]
 					// cmds,id,key,callback
 					this.sendCommands([arr]);
@@ -1960,7 +2148,7 @@ console.log("app.neoPixel arr",[arr]);
 
 				return this;
 
-			}
+			};
 
 
 
@@ -1977,11 +2165,84 @@ console.log("app.neoPixel arr",[arr]);
 				if(e.target.parentElement.parentElement.classList.contains('item'))
 					app._currentItemId = app.getIdFromDOMId(e.target.parentElement.parentElement.id)
 
+				app.ui.handlerContextMenuItemEdit();
+
 				return app;
 					
-			}
+			};
 
 
+
+
+
+
+			app.ui = {
+
+
+				closeToolbox: function(){
+					jQuery('.span-toolbox').css('display','none');
+				},
+
+				handlerContextMenuItemEdit: function(timeout){
+					// add the event handler to the Item Context Menu for Edit
+					
+					if(app.isMobileEditor){
+
+						timeout = timeout || 0;
+
+						// If the element does not exist, try again after a timeout 
+						// (but not if this method being called with a timeout already - avoid infinite loop)
+
+						if(jQuery('.open>.dropdown-menu').length == 0 && timeout<=3000){
+							return setTimeout(function(){app.ui.handlerContextMenuItemEdit(timeout+500)},500);
+						}
+
+						jQuery('.open>.dropdown-menu').children().each(function () {
+						    if(jQuery(this).find('.icon-edit').length){
+								jQuery(this).click(function(){
+									app.ui.openToolbox();
+
+									app.ui.handlerItemSave()
+
+								});
+						    } 
+						});
+					}
+				},
+
+
+				handlerItemSave: function(timeout){
+
+					if(app.isMobileEditor){
+						timeout = timeout || 0;
+
+						if(jQuery('#popup-container .btn-success').length == 0 && timeout<=3000){
+							return setTimeout(function(){app.ui.handlerItemSave(timeout+500)},500);
+						}
+
+						jQuery('#popup-container .btn-success').click(function(){
+							app.ui.closeToolbox();
+						});						
+					}
+
+				},
+
+
+
+				openToolbox: function(){
+					jQuery('.span-toolbox').css('display','block');
+				},
+
+
+				toggleToolbox: function(){
+					if(jQuery('.span-toolbox').css('display') == "block"){
+						jQuery('.span-toolbox').css('display','none');
+					}else {
+						jQuery('.span-toolbox').css('display','block');
+					}
+
+				}
+			};
 
 
 			app.onTouchend = function(e){
@@ -2047,7 +2308,7 @@ console.log("app.neoPixel arr",[arr]);
 				//        e.preventDefault()
 				app._isActiveTouchmove = false;
 
-			}
+			};
 
 
 			app.onTouchstart = function(e){
@@ -2062,7 +2323,7 @@ console.log("app.neoPixel arr",[arr]);
 				app.touchStartY = touchobj.clientY;	
 				app.touchX = touchobj.clientX;
 				app.touchY = touchobj.clientY;	
-			}
+			};
 
 
 
@@ -2080,7 +2341,7 @@ console.log("app.neoPixel arr",[arr]);
 
 				return this;
 
-			}
+			};
 
 
 
@@ -2089,7 +2350,7 @@ console.log("app.neoPixel arr",[arr]);
 				// prepends `value` to `variable` and return the result
 
 				return this.appendToVariable(variable,value,true);
-			}
+			};
 
 
 
@@ -2124,7 +2385,7 @@ console.log("app.neoPixel arr",[arr]);
 					}
 				}
 
-			}
+			};
 
 
 
@@ -2194,7 +2455,7 @@ console.log("app.neoPixel arr",[arr]);
 				jQuery('.data_filter.item button').before(insert);
 
 				return this;
-			}
+			};
 
 
 
@@ -2232,7 +2493,7 @@ console.log("app.neoPixel arr",[arr]);
 
 				return this;
 
-			}
+			};
 
 
 
@@ -2245,28 +2506,28 @@ console.log("app.neoPixel arr",[arr]);
 
 				return this;
 
-			}
+			};
 
 
 			app.removeScreenEvent_xxx = function(identifier){
 				// Stops a `Screen` event from being called when a screen loads
 				// `identifier` is the return value of `app.addScreenEvent()` 
 
-			}
+			};
 
 
 			app.removeTabEvent_xxx = function(identifier){
 				// Stops a `Tab` event from being called when a screen loads
 				// `identifier` is the return value of `app.addTabEvent()` 
 
-			}
+			};
 
 
 			app.removeVariableEvent_xxx = function(identifier){
 				// Stops a `Variable` event from being called when a variable value changes
 				// `identifier` is the return value of `app.addVariableEvent()` 
 
-			}
+			};
 
 
 
@@ -2275,12 +2536,11 @@ console.log("app.neoPixel arr",[arr]);
 				// Save data about the screen to localStorage
 				// Return `this`
 
-console.log("_saveScreenData",id,el,el.classList.length,el.dataset)
 
 
 				return this;
 
-			}
+			};
 				
 
 
@@ -2299,7 +2559,7 @@ console.log("_saveScreenData",id,el,el.classList.length,el.dataset)
 				this.getDevice(id,key).sendCommands(cmds,callback)
 
 				return this;
-			}
+			};
 
 
 
@@ -2312,7 +2572,7 @@ console.log("_saveScreenData",id,el,el.classList.length,el.dataset)
 				this.addAction(idOrClassName,handler);
 
 				return this;
-			}
+			};
 
 
 
@@ -2326,7 +2586,7 @@ console.log("_saveScreenData",id,el,el.classList.length,el.dataset)
 
 				return app.setBackgroundColor(color);
 
-			}
+			};
 
 
 
@@ -2336,7 +2596,7 @@ console.log("_saveScreenData",id,el,el.classList.length,el.dataset)
 				app.getScreen().setBackgroundColor(color);
 
 				return this;
-			}
+			};
 
 
 			app.setBackgroundImage = function(src,method){
@@ -2345,7 +2605,9 @@ console.log("_saveScreenData",id,el,el.classList.length,el.dataset)
 				// Returns `this`
 
 				app.getScreen().setBackgroundImage(src,method);
-			}
+
+				return this;
+			};
 
 
 
@@ -2359,7 +2621,7 @@ console.log("_saveScreenData",id,el,el.classList.length,el.dataset)
 				this.getDevice(props);
 
 				return this;
-			}
+			};
 
 
 			app.setInterval = function(func,delay,timeout,name){
@@ -2381,7 +2643,7 @@ console.log("_saveScreenData",id,el,el.classList.length,el.dataset)
 
 				return this;
 
-			}
+			};
 
 
 
@@ -2399,7 +2661,7 @@ console.log("_saveScreenData",id,el,el.classList.length,el.dataset)
 				}
 
 				return this;
-			}
+			};
 
 
 
@@ -2414,7 +2676,7 @@ console.log("_saveScreenData",id,el,el.classList.length,el.dataset)
 				this.getDevice(id,key).setMotorDriver(type,callback);
 
 				return this;
-			}
+			};
 
 
 
@@ -2440,7 +2702,7 @@ console.log("_saveScreenData",id,el,el.classList.length,el.dataset)
 
 				return this;
 
-			}
+			};
 
 
 
@@ -2454,15 +2716,36 @@ console.log("_saveScreenData",id,el,el.classList.length,el.dataset)
 
 				return this;
 
-			}
+			};
 
 
+			app.setTitleBackgroundColor = function(color){
+				// Sets the `backgroundColor` of the `Screen Title`  to `color`
+				// Return `this`
+
+				this.getScreen().setTitleBackgroundColor(color);
+
+				return this;
+
+			};
+
+
+
+			app.setTitleColor = function(color){
+				// Sets the `color` of the `Screen Title`  to `color`
+				// Return `this`
+
+				this.getScreen().setTitleColor(color);
+
+				return this;
+
+			};
 
 			app.setVariable_xxx = function(name, value){
 				// Set the value of the variable `name` to `value`.
 				// [NOTE: the method name is setVariable without _xxx and it already exists in the built-in JavaScript library. 
 				//   It is included here for documentation purposes only.]
-			}
+			};
 
 
 
@@ -2478,7 +2761,7 @@ console.log("_saveScreenData",id,el,el.classList.length,el.dataset)
 					setTimeout(function(){document.getElementsByClassName('loader')[0].style.display = 'none'},timeout)
 
 				return this;
-			}
+			};
 
 			app.showRemoteScreen_xxx = function(url){
 				// The app will navigate to a remote screen that is loaded from `url`. 
@@ -2488,7 +2771,7 @@ console.log("_saveScreenData",id,el,el.classList.length,el.dataset)
 				// [NOTE: the method name is showRemoteScreen without _xxx and it already exists in the built-in JavaScript library. 
 				//   It is included here for documentation purposes only.]
 
-			}
+			};
 
 
 			app.showScreen_xxx = function(id){
@@ -2501,7 +2784,7 @@ console.log("_saveScreenData",id,el,el.classList.length,el.dataset)
 				// The app will navigate the tab with `id`
 				// [NOTE: the method name is showTab without _xxx and it already exists in the built-in JavaScript library. 
 				//   It is included here for documentation purposes only.]
-			}
+			};
 
 
 
@@ -2515,15 +2798,15 @@ console.log("_saveScreenData",id,el,el.classList.length,el.dataset)
 
 				var device = this.getDevice(id?id:this._defaultDevice)
 
-				// For IOIO use built in iot.setPin
+				// For IOIO use built in iot.togglePinValue
 				if(device.id == "IOIO"){
 					try{
-				        window.appbuilder.events.iot.togglePinValue(pinName)
+				        window.appbuilder.events.iot.togglePinValue(pinNameOrNumber)
 					}catch(er){this.handleError(er,"app.togglePin() IOIO error")}
 				} else {
-					// TODO Code to toggle in for device
+					device.togglePin(pinNameOrNumber);
 				}
-			}
+			};
 
 
 
@@ -2531,7 +2814,7 @@ console.log("_saveScreenData",id,el,el.classList.length,el.dataset)
 			app.togglePinValue = function(pinNameOrNumber,id){
 				// Override method for `togglePin`
 				return this.togglePin(pinNameOrNumber,val,id);
-			}
+			};
 
 
 
@@ -2565,7 +2848,7 @@ console.log("_saveScreenData",id,el,el.classList.length,el.dataset)
 
 				return obj;
 
-			}
+			};
 
 
 
@@ -2577,7 +2860,7 @@ console.log("_saveScreenData",id,el,el.classList.length,el.dataset)
 				color = this.toRGB(color);
 
 				return 256*256*color.r+256*color.g+color.b;
-			}
+			};
 
 
 
@@ -2625,21 +2908,46 @@ console.log("_saveScreenData",id,el,el.classList.length,el.dataset)
 
 				this.id = id;
 				this.element= null; // HTML DOM element for this Item
+				this.jQuery = null; // a jQuery object for the DOM lement
 				this.domId= '';
 				this.hoverImage = null; // Image to display when hovering over this item (our touchover)
 				this.onHoverDoActions = false;
 				this.originalImage = null;
+				this.type = null;
+
 
 				try{
 					this.domId = 'item'+this.id;
 					this.element = document.getElementById(this.domId)
+					this.jQuery = jQuery(this.element);
 
+					if(this.jQuery.hasClass("plain"))
+						this.type = "plain";
+					if(this.jQuery.hasClass("thumb"))
+						this.type = "thumb";
+					if(this.jQuery.hasClass("image"))
+						this.type = "image";
+					if(this.jQuery.hasClass("icon"))
+						this.type = "icon";
+					if(this.jQuery.hasClass("html")){
+						// might be Styled Text or Text item
+						if(this.jQuery.hasClass("text"))
+							this.type = "text";
+						else
+							this.type = "html"
+					}
 
 				}catch(er){
 					app.handleError(er,'Item.init()')
 				}
 
 
+
+				this.init = function(element){
+					this.element = document.getElementById(this.domId)
+					this.jQuery = jQuery(this.element);
+
+				}
 
 				this.addBefore = function(){
 				}
@@ -2693,6 +3001,20 @@ console.log("_saveScreenData",id,el,el.classList.length,el.dataset)
 				
 					return this.element.style.backgroundColor;
 
+				}
+
+				this.getDefaultValue = function(){
+					// Return the `Default Value` for this item
+
+					// Check the actual HTML code to see get the original value set in AppBuilder... the value="" will hold the Default Value
+					if(String(this.element.outerHTML).match(/.* value="\d+".*/)){
+						thisVal = String(this.element.outerHTML);
+						thisVal = thisVal.replace(/.* value="(\d+)".*/,"$1");
+						if(thisVal > ""){
+							return thisVal;
+						}
+					}
+					return "";
 				}
 
 
@@ -2884,7 +3206,12 @@ console.log("_saveScreenData",id,el,el.classList.length,el.dataset)
 
 				this.setImage = function(src){
 					//set the image URL to `src`
-					app.findClass(this.element,"image").src = src;
+					if(this.type == "plain"){
+						this.jQuery.find(".icon").first().attr("src",src);
+					}else{
+						this.jQuery.find(".image").first().attr("src",src);
+					}
+//					app.findClass(this.element,"image").src = src;
 					return this
 				}
 
@@ -3011,7 +3338,7 @@ console.log("_saveScreenData",id,el,el.classList.length,el.dataset)
 					return "AppShed Object: Item ("+this.id+")"
 				}
 
-			}
+			};
 
 
 
@@ -3166,7 +3493,6 @@ console.log("_saveScreenData",id,el,el.classList.length,el.dataset)
 					// All the content is at fixed position, and content below the fold remains hidden. 
 					// Returns `this`
 
-console.log("Screen.disableScroll")					
 					this.element.getElementsByClassName('items')[0].retrieve('scroll').disable();
 
 					// To do this using event handler on the screen
@@ -3581,6 +3907,7 @@ console.log("Screen.disableScroll")
 				}
 
 
+
 				this.setTitleBackgroundColor = function(color){
 					// Sets the `backgroundColor` of this `Screen Title`  to `color`
 
@@ -3595,6 +3922,16 @@ console.log("Screen.disableScroll")
 
 
 
+				this.setTitleColor = function(color){
+					// Sets the `backgroundColor` of this `Screen Title`  to `color`
+
+					jQuery(".header .title").css("color",color);
+
+					return this;
+				}
+
+
+
 				this.toString = function(){
 					// Returns a string represenation of the `Screen`
 					return "AppShed Object: Screen ("+this.id+")"
@@ -3604,7 +3941,7 @@ console.log("Screen.disableScroll")
 
 
 
-			}
+			};
 
 
 
@@ -3663,6 +4000,7 @@ console.log("Screen.disableScroll")
 				// * support IOIO calls or aREST calls... and Arduino calls
 				// * do setPinMode when required... on calling read/write methods... and use callback if changing pinMode.
 
+				this._maxPins = 40; // Maximum number of pins - used in updatedTiedVariables()
 				this.address = "";
 				this.connected = false; // This value is passed in from the device
 				this.deadZoneAdjustment = 0;
@@ -3679,6 +4017,7 @@ console.log("Screen.disableScroll")
 				this.isTestingLocalIPFromRemote = false;
 				this.isValidLocalIP = false;	
 				this.isValidLocalIPFromRemote = false;	
+				this.lastSetPinValue = {}; // records the last value that was set for a pin - used by togglePin()
 				this.layout = null;
 				this.local_ipFromRemote = null; // Stores the local IP Address received from Remote
 				this.name = ""; // This value is passed in from the device
@@ -3687,9 +4026,9 @@ console.log("Screen.disableScroll")
 				this.pinFormats = {};
 				this.pinNames = []; // An array of pin names (from the layout)
 				this.pinModes = {};
-				this.pinValues = {};
+				//this.pinValues = {}; deprecated - use this[D1]
 				this.pinVariableTies = []; // array of arrays of variables tied to each pin
-				this.pollActive = []; // Array of booleans to indicate if a poll is active for that index/pin
+				this.pollActive = false; // flag if pollin is active for this device (repeatedly reading pin values)
 				this.pollTimeout = 1000;
 				this.remoteAddress = "";
 				this.tiePinsToVariables = false; // If true, variables in the app are tied to pins by the same name
@@ -3857,19 +4196,28 @@ console.log("Screen.disableScroll")
 				}
 
 
-				this.callFunction = function(called_function, parameters, callback) {
+				this.callFunction = function(called_function, parameters, onSuccess,onFail) {
 					// Calls a function defined on the device
 
-					var thisURL = this.address + '/' + called_function + '?params=' + parameters 
-					if(this.id != "local")
-						thisURL += '%26key='+this.key
+					var thisURL = this.address + '/' + called_function;
+					if(parameters){
+						thisURL += '?params=' + parameters;	
+					}  
+					if(this.id != "local" && this.key){
+						thisURL += '%26key='+this.key;
+					}
 
 					jQuery.ajaxq(this.id, {
 					  url: thisURL,
 					  crossDomain: true
-					}).done(function(data) {
-					  if (callback != null) {callback(data)}
-					})
+					}).done(function(data, textStatus, jqXHR) {
+					  if (onSuccess != null) {
+					  	onSuccess(data, textStatus, jqXHR)
+					  }
+					}).fail(function(a, textStatus, b){
+						if (onFail != null) 
+							onFail(a, textStatus, b);
+					});
 
 					return this;
 				}
@@ -3909,7 +4257,7 @@ console.log("Screen.disableScroll")
 					}
 					else if(this.local_ipFromRemote && this.local_ipFromRemote != "undefined"){
 						if(this.isValidLocalIPFromRemote)
-							this.address = this.address = "http://"+this.local_ipFromRemote;
+							this.address = "http://"+this.local_ipFromRemote;
 						else 
 							this.testLocalIP(1); 
 					}
@@ -3939,6 +4287,24 @@ console.log("Screen.disableScroll")
 
 					return this;
 				}
+
+
+
+				this.connect = function(onConnect,onFail){
+					// Connects to the device.
+					// Optional function `onConnect` called once connected
+					// Optionalfunction `onFaile` called if connection fails 
+					// Returns `this`
+
+					this.getInfo(onConnect,null,onFail);
+
+					return this;
+
+				}
+
+
+
+
 
 				this.digitalRead = function(pin, callback) {
 					// Reads the digital value of `pin`
@@ -4026,11 +4392,13 @@ console.log("Screen.disableScroll")
 
 
 
-				this.getInfo = function(callback,address) {
+				this.getInfo = function(onSuccess,address,onFail) {
 					// Queries the device to get basic info
-					// `callback` is the function run when the `data` is returned from the device
+					// `onSuccess` is the function run when the `data` is returned from the device (arguments: data, textStatus, jqXHR)
 					// Optional `address` can be passed in, the default address is `this.address`
+					// Optional `onFail` is the function called when the connection fails (arguments: a, textStatus, b)					
 					// Returns `this`
+
 
 					var address = address || this.address;
 
@@ -4040,17 +4408,25 @@ console.log("Screen.disableScroll")
 					if(!address.match(/http/))
 						address = 'http://'+address;
 
+					var deviceId = this.id;
 
 					jQuery.ajaxq(this.id, {
 					  url: address + '/info' +'?key='+this.key,
 					  crossDomain: true
-					}).done(function(data) {
-						try{app.getDevice(data.id).updateInfo(data).info = data}
+					}).done(function(data, textStatus, jqXHR) {
+
+						try{
+							app.getDevice(deviceId).updateInfo(data).info = data;
+							if (onSuccess != null && data.connected) {
+								onSuccess(data, textStatus, jqXHR);
+							} else if (onFail != null && !data.connected) {
+								onFail(data, textStatus, jqXHR);
+							}
+						}
 						catch(er){app.handleError(er,"Device.getInfo()")};
-						if (callback != null) {callback(data);}
 					}).fail(function(a, textStatus, b){
-						if (callback != null) 
-							callback(a, textStatus, b);
+						if (onFail != null) 
+							onFail(a, textStatus, b);
 					});
 
 					return this;
@@ -4138,12 +4514,14 @@ console.log("Screen.disableScroll")
 
 				this.getPinValue = function(pinNameOrNumber){
 					// Returns the value of pin `pinNameOrNumber` 
-					// This function requires the pin value to be polled (regular lookup every x milliseconds)
-					// If the polling has not started, this function starts the polling loop, but a `null` value is returned
-					// The polling loop constantly updates the value
+					// If a `name` is passed in, then this device must have a `layout` with a pin named accordingly
+					// If  polling has not started, this function starts polling the pin values
 
 
 
+
+					// make sure polling is active
+					this.poll();
 
 					// presume a pin number passed in
 					
@@ -4170,11 +4548,10 @@ console.log("Screen.disableScroll")
 					if(isNaN(pinNumber)){
 						// not a number, do nothing
 					} else {
-						// make sure this pin is being pollled
-						this.poll(pinNumber);
+						
 
 						// return the value saved for this pin
-				 		return this.pinValues[pinNumber];
+				 		return this["D"+pinNumber];
 					}
 
 					return null;
@@ -4285,39 +4662,59 @@ console.log("Screen.disableScroll")
 
 
 
-
-				this.poll = function(pinNumber,timeout){
-					// Polls `pinNumber` to constantly check the value;
-					// The pin value is saved and can be accessed (after a timeout) using `this.getPinValue()`
-					// Optional `timeout` determines how long to wait before polling again
+				this.poll = function(){
+					// Starts the polling for this device.
+					// Repeatedly updates the pin values for tied pins
 					// Returns `this`
 
-					var deviceId = this.id;
-					var timeout = timeout || this.pollTimeout; // use the default timeout if none supplied
-
-
-					// Start polling if not currently active
-
-					// for analog pins, add 100 to the ref
-					if(!this.pollActive[pinNumber]){
-						this.pollActive[pinNumber] = true;
-						this.digitalRead(pinNumber, function(data){
-							var device = app.getDevice(deviceId);
-							device.pollActive[pinNumber] = false;
-							device.pinValues[pinNumber] = data.return_value;
-							device.updatedTiedVariables(pinNumber);
-
-							// poll again
-							setTimeout(function(){
-								device.poll(pinNumber);
-							},timeout)
-						})
+					if(!this.pollActive){
+						this.pollActive = true;
+						this.pollRepeat();
 					}
+					return this;
+				}
+
+
+				this.pollRepeat = function(){
+					// Runs on a loop, Reads pin values and updates tied variables
+					// Returns `null`
+
+					this.readPins().updatedTiedVariables();
+
+					// poll again
+					var device = app.getDevice(this.id);
+					setTimeout(function(){
+						device.pollRepeat();
+					},device.pollTimeout)
 
 				};
 
 
 
+				this.readPins = function(onSuccess,onFail){
+					// Reads all the pins and updates the `device info`
+					// Optional `onSuccess` called once the info has been updated
+					// Optional `onFail` called if the info can't be updated
+					// Returns `this`
+
+					var deviceId = this.id;
+					try{
+						this.callFunction("readPins",null,function(data, textStatus, jqXHR ){
+							app.getDevice(deviceId).getInfo(onSuccess,null,onFail);
+						},function(jqXHR, textStatus, errorThrown){
+							if(onFail){
+								onFail(jqXHR, textStatus, errorThrown );							
+							}							
+						});
+					}catch(er){
+						if(onFail){
+							onFail();							
+						}
+					}
+				
+					return this;
+
+				}
 
 
 				this.sendCommands = function(cmds,callback){
@@ -4462,6 +4859,9 @@ console.log("Screen.disableScroll")
 						// not a number, do nothing
 					} else {
 
+						// Save this as the lastSetPinValue
+						this.lastSetPinValue[pinNumber] = val;
+
 						// if val is boolean then use digital output
 						if(val == true || val == "true" || String(val).match(/on/i))
 							this.digitalWrite(pinNumber,1)
@@ -4558,11 +4958,12 @@ console.log("Screen.disableScroll")
 						this.isTestingLocalIPFromRemote = true;
 						this.isValidLocalIPFromRemote = false;	
 					} else {
-						if(this.isTestingLocalIP)
+						if(this.isTestingLocalIP){
 							return
+						}
 						this.isTestingLocalIP = true;
 						this.isValidLocalIP = false;	
-					}
+					}  
 
 					var originalID = this.id;
 
@@ -4574,12 +4975,15 @@ console.log("Screen.disableScroll")
 					// Query the IP and see if it is valid
 					this.getInfo(function(data){
 
-						if(data.id == originalID){
+						// If the device is connected to over local network, the id will be "local"
+						if(data.id == originalID || data.id == "local"){
 							if(fromRemote)
-								app.getDevice(data.id).isValidLocalIPFromRemote = true;
+								app.getDevice(originalID).isValidLocalIPFromRemote = true;
 							else
-								app.getDevice(data.id).isValidLocalIP = true;
-							app.getDevice(data.id).configureAddress()					
+
+								app.getDevice(originalID).isValidLocalIP = true;
+
+							app.getDevice(originalID).configureAddress()					
 						}
 				    },testIP);
 
@@ -4594,7 +4998,6 @@ console.log("Screen.disableScroll")
 					// Ties the pin `pinNameOrNumber` to a `variable`
 					// The variable is updated every time the pin is polled
 					// Returns `this`
-
 
 					// presume a pin number passed in
 					
@@ -4627,7 +5030,7 @@ console.log("Screen.disableScroll")
 
 						// add the variable to the array of ties
 						this.pinVariableTies[pinNumber].push(variable);
-						this.poll(pinNumber);
+						this.poll();
 					}
 					return this;
 				}
@@ -4643,14 +5046,13 @@ console.log("Screen.disableScroll")
 
 					this.tiePinsToVariables = true; // remember this setting, might need to tie later (e.g. in setPinMode())
 
-
 					if(this.layout){
 						// go through inputs 
 						var inputs = this.layout.inputs;
 
 						for(var i=0;i<inputs.length;i++){
 							this.tie(inputs[i].pin,inputs[i].variable);
-							this.poll(inputs[i].pin);
+							//this.poll(inputs[i].pin); - done in tie()
 						}
 					} 
 
@@ -4659,6 +5061,19 @@ console.log("Screen.disableScroll")
 				}
 
 
+
+				this.togglePin = function(pinNameOrNumber){
+
+					try{
+						if(this.lastSetPinValue[pinNameOrNumber] == 1)
+							return this.setPin(pinNameOrNumber,0)
+						else if(!this.lastSetPinValue[pinNameOrNumber] || this.lastSetPinValue[pinNameOrNumber] == 0)
+							return this.setPin(pinNameOrNumber,1)
+						else 
+							return null
+						
+					}catch(er){}
+				}
 
 
 
@@ -4684,7 +5099,13 @@ console.log("Screen.disableScroll")
 						if(data.hardware)
 							this.hardware = data.hardware;
 						if(data.variables){
-							this.variables = data.variables;
+							// update any variables that are in data
+							var keys = Object.keys(data.variables)
+							for(var k=0;k<keys.length;k++){
+								this.variables[keys[k]] = data.variables[keys[k]];
+							}
+
+							//this.variables = data.variables; // this line overwrites good keys in variables not passed in data
 							if(data.variables.analogValues){
 								this.A0 = parseInt(data.variables.analogValues)
 							}
@@ -4762,17 +5183,21 @@ console.log("Screen.disableScroll")
 
 
 				this.updatedTiedVariables = function(pinNumber){
-					// Update all variables tied to a pin with the current value
+					// Update all variables tied to pins with the latest pin value
 					// Return `this`
 
-
-					if(this.pinVariableTies[pinNumber] && this.pinVariableTies[pinNumber].length){
-						for(var i=0;i<this.pinVariableTies[pinNumber].length;i++){
-							try{
-								app.setVariable(this.pinVariableTies[pinNumber][i],this.pinValues[pinNumber])
-							}catch(er){}
+					for(var p=0;p<this._maxPins;p++){
+						if(this.pinVariableTies[p] && this.pinVariableTies[p].length){
+							for(var i=0;i<this.pinVariableTies[p].length;i++){
+								try{
+									app.setVariable(this.pinVariableTies[p][i],this["D"+p])
+								}catch(er){}
+							}
 						}
+						
 					}
+
+					return this;
 				}
 
 
@@ -4786,7 +5211,7 @@ console.log("Screen.disableScroll")
 				// We must call init() on the Device
 				// ************************************************************
 				this.init();
-			}
+			};
 
 
 
@@ -4848,6 +5273,8 @@ console.log("Screen.disableScroll")
 
 
 			// Data object.
+
+
 
 
 			
@@ -5625,7 +6052,7 @@ console.log("Screen.disableScroll")
 
 
 
-			}
+			};
 
 
 
@@ -5782,7 +6209,7 @@ console.log("Screen.disableScroll")
 			Device.prototype.toString = function deviceToString() {
 			  var ret = 'Device ' + this.id;
 			  return ret;
-			}
+			};
 
 
 			// INITIALISE App
@@ -5796,7 +6223,16 @@ console.log("Screen.disableScroll")
 
 
 
+//			window.app = app;  // Add the app to the window
 
 		} catch(er){console.log("ERROR IN app.js",er)}
+
+
+
+
+
+ // },1000); // END setTimeout
+
+}); // END window.addEventListner
 
 
