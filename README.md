@@ -198,4 +198,61 @@ This is a top-level class representing a Screen. In AppShed there are four main 
 * v1.3.6 (17-04-2017) RGB LED, theme & import in Description
 * v1.3.7 (26-04-2017) Form localStorage save, aggregate functions
 * v1.3.8 (28-04-2017) Data Class added, replaces Form Class, AppBuilder CSS, Blue light
- 
+ * v1.3.9 (05-05-2017) Data calculations, Data select, Data filters
+* v1.3.10 (07-05-2017) Data enhancements
+* v1.3.11 (14-05-2017) NeoPixel basic support
+* v1.3.12 (27-05-2017) UI enhancements
+* v1.3.13 (01-06-2017) Device supports Sketch 39 (getInfo() sends all pin values)
+* v1.3.14 (07-06-2017) Minor enhancements, PhoneGap/Cordova fixes
+* v1.3.15 (13-06-2017) AppBuilder UI enhancements
+* v1.3.16 (20-06-2017) Import and Theme stability enhancements
+* v1.3.17 (25-06-2017) app.log(), Mobile UI
+* v1.3.18 (30-06-2017) Mobile UI enhancements
+* v1.4.1 (10-07-2017) Included in UI for all users on load (no Custom JavaScript required), separated out CSS files
+* v1.4.2 (12-07-2017) device.togglePin(), app.ready
+* v1.4.3 (16-07-2017) Device.connect (with onConnected event)
+* v1.4.4 (17-07-2017) app.doScreenImports()	
+* v1.4.5 (19-07-2017) moved to ./appbuilder, wrap all in window.addEvent
+* v1.4.6 (22-07-2017) bug fixing - Live site updated to include app.js 28-07-2017
+* v1.4.7 (28-07-2017) Bug fixes
+* v1.4.8 (01-08-2017) Connect to devices using local_ip, Device.tieAllPinsToVariables updated
+* v1.4.9 (01-08-2017) Device.tie() supports analog
+* v1.4.10 (05-08-2017) Item.addAction, hideTab(), showTab(), app.addClass(), app.removeClass(), core styles
+* v1.4.11 (15-08-2017) Bug fixes
+* v1.4.12 (30-08-2017) Phaser.io integration, doScreenOnload
+* v1.4.13 (09-09-2017) hideTabBar() fixed, app.loadScript() now with callback onload, app.onReady()
+* v1.4.14 (25-09-2017) Item.show(), Item.hide(), Item.isFormItem(), Item.getVariable(), Item.getVariableName()
+* v1.4.15 (28-09-2017) app.import - callback has timeout, app.repositionItems()
+* v1.4.16 (08-10-2017) Fixed Device.analogRead() 
+* v1.4.17 (14-10-2017) .hidden-live, Screen.addItem, app.stopLoops()
+* v1.4.18 (19-10-2017) .template, Screen.addItem({template}), Item.setAction()
+* v1.4.19 (24-10-2017) coreStyles... Academy
+* v1.4.20 (25-10-2017) renamed Data.getData() to Data.rows(), JavaScript API Documentation started
+* v1.4.21 (25-10-2017) bug fixes: onLoad running multiple times, data.email
+* v1.4.22 (11-12-2017) expanding addItem template
+* v1.4.23 (11-02-2018) fixes to Item templates, minor bugs
+* v1.4.24 (12-04-2018) Board definitions stored in local storage, Item.getLargeImage(), Device.tiePinsToVariables default true 
+* v1.4.25 (31-05-2018) Integrate Phaser, Joystick and Gyro, minify 
+* v1.4.26 (02-06-2018) Restructure some game stuff , Improve Device performance and reconnecting
+* v1.4.27 (05-06-2018) addIotEvent, joystick and gyro enhancements
+* v1.4.28 (24-06-2018) loader fixes, Device.getPinLayout
+* v1.4.29 (29-07-2018) Game changes, keyboard control, Phaser styles, Device D0 support
+* v1.5 (18-08-2018) Improved support for Phaser and Device integration with Phaser 
+* v1.5.1 (18-08-2018) Better support for Export web-app, Base64 joystick sounds, added app.assets, app.game.[sprite,spriteSheet,tileSprite,audio, etc], new AppShed Academy
+* v1.5.2 (10-10-2018) Game Maker IDE, Phaser 3
+* 1.6.1 (31-10-2018) AppShed 3.0
+* 1.6.2 (15-11-2018) Various Game Maker fixes, Firefox fixes /s regular expression
+* 1.6.3 (18-11-2018) Go live, AppShed 3.0
+* 1.6.4 (19-11-2018) Move to Open Street Map
+* 3.0.1 (22-11-2018) Version change to match AppShed 3.0 release
+* 3.0.2 (22-11-2018) Game changes to support Platformer
+* 3.0.3 (28-11-2018) Fixes to Map (edit, delete)
+* 3.0.4 (27-01-2019) Remove OpenStreetMap from app.js (loaded server side)
+* 3.0.5 (05-02-2019) doScreenOnLoad not run in AppBuilder
+* 3.0.6 (26-04-2019) Fixed  properties fieds, start stop, layout, indefinite spinner), joystick, pointer
+* 3.0.7 (11-05-2019) object shortcut names, updated game tools
+* 3.0.8 (15-05-2019) Academy course database search/browse, game items added to game from bottom up, GameObject.group as options
+* 3.0.9 (19-05-2019) Process all game objects together (ensure correct layering), drop-downs for object selection (groups, events), Phaser 3.17.0, audio.allowSimultaneous
+* 3.0.10 (31-05-2019) Game Maker enhancements, call functions function1() not function1.call(), params passed to funcs, fixed Text
+* 3.0.11 (08-06-2019) Keyboard, pointer now in Events
+
